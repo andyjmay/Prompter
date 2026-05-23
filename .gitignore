@@ -1,0 +1,72 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.cache
+*.ilk
+*.pdb
+*.exe
+*.dll
+*.application
+*.manifest
+*.pubxml
+
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuspec
+
+## MSTest / NUnit / xUnit
+[Tt]est[Rr]esult*/
+*.trx
+
+## ClickOnce
+publish/
+*.publish.xml
+
+## Publish Web Output
+*.publishsettings
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+## Rider / IntelliJ
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+*.code-workspace
+
+## Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+## Others
+*.log

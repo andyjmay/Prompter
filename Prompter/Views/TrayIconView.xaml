@@ -1,0 +1,34 @@
+<Window x:Class="Prompter.Views.TrayIconView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
+        xmlns:vm="clr-namespace:Prompter.ViewModels"
+        ShowInTaskbar="False"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Width="0" Height="0"
+        Loaded="Window_Loaded">
+    <Grid>
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        IconSource="/Assets/prompter.ico"
+                        ToolTipText="Prompter"
+                        LeftClickCommand="{Binding OpenSettingsCommand}"
+                        MenuActivation="LeftOrRightClick">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Mode">
+                        <MenuItem Header="Standard" IsCheckable="True" IsChecked="{Binding IsStandard}" Command="{Binding SetModeCommand}" CommandParameter="Standard"/>
+                        <MenuItem Header="Formal" IsCheckable="True" IsChecked="{Binding IsFormal}" Command="{Binding SetModeCommand}" CommandParameter="Formal"/>
+                        <MenuItem Header="Raw" IsCheckable="True" IsChecked="{Binding IsRaw}" Command="{Binding SetModeCommand}" CommandParameter="Raw"/>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
+                    <MenuItem Header="Copy Last Output" Command="{Binding CopyLastOutputCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Exit" Command="{Binding ExitCommand}"/>
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
+    </Grid>
+</Window>

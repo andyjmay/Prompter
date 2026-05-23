@@ -1,0 +1,49 @@
+<Window x:Class="Prompter.Views.WelcomeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Welcome to Prompter"
+        Width="480"
+        Height="360"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF1E1E1E">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Welcome to Prompter" FontSize="22" FontWeight="Bold" Foreground="White" Grid.Row="0" Margin="0,0,0,8"/>
+        <TextBlock Text="Push-to-talk speech-to-text, powered by local AI." FontSize="13" Foreground="#FFAAAAAA" Grid.Row="1" Margin="0,0,0,20"/>
+
+        <StackPanel Grid.Row="2" Margin="0,0,0,16">
+            <TextBlock Text="How to use:" FontWeight="Bold" Foreground="White" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="1." Foreground="#FF00BFFF" FontWeight="Bold" Width="20"/>
+                <TextBlock Text="Press and hold " Foreground="#FFCCCCCC"/>
+                <TextBlock x:Name="HotkeyText" Text="Win + Ctrl + P" Foreground="White" FontWeight="Bold"/>
+                <TextBlock Text=" to start recording." Foreground="#FFCCCCCC"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="2." Foreground="#FF00BFFF" FontWeight="Bold" Width="20"/>
+                <TextBlock Text="Speak naturally. A red bar appears at the bottom of your screen." Foreground="#FFCCCCCC" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <TextBlock Text="3." Foreground="#FF00BFFF" FontWeight="Bold" Width="20"/>
+                <TextBlock Text="Release the keys. Your speech is transcribed, cleaned up by AI, and typed into the active window." Foreground="#FFCCCCCC" TextWrapping="Wrap"/>
+            </StackPanel>
+        </StackPanel>
+
+        <Border Grid.Row="3" Background="#FF2A2A2A" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="First-time setup" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
+                <TextBlock Text="AI models will download in the background (about 2.5 GB). You can start dictating as soon as the speech model is ready." Foreground="#FFAAAAAA" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Button Grid.Row="4" Content="Got it — minimize to tray" Width="160" HorizontalAlignment="Right" Click="GotIt_Click" Background="#FF00BFFF" Foreground="White" FontWeight="Bold" BorderThickness="0" Padding="10,6"/>
+    </Grid>
+</Window>

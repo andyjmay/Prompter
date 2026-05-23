@@ -1,0 +1,16 @@
+<Window x:Class="Prompter.Views.RecordingOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Height="40"
+        Width="800">
+    <Border Background="#D0FF0000" CornerRadius="0" Height="8" VerticalAlignment="Bottom" Margin="0,0,0,0">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="0" BlurRadius="8" Color="Red"/>
+        </Border.Effect>
+    </Border>
+</Window>
