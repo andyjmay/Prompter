@@ -1,3 +1,4 @@
+using Microsoft.AI.Foundry.Local;
 using Prompter.Models;
 
 namespace Prompter.Services;
@@ -16,5 +17,7 @@ public interface IModelManager : IAsyncDisposable
     Task UnloadWhisperModelAsync();
     Task UnloadModelAsync(string alias);
     Task DownloadModelAsync(string alias);
+    Task<OpenAIChatClient> GetChatClientAsync();
+    Task<OpenAIAudioClient> GetAudioClientAsync();
     event Action<string, float>? ModelDownloadProgress;
 }

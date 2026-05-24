@@ -60,7 +60,13 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _logger.Log("Pipeline: StartRecording called.");
         _isStopping = false;
         _recordingGeneration++;
-        _audioFeedback.PlayStart();
+
+        // Show visual feedback immediately before any potentially slow audio setup.
+        _uiManager.ShowRecordingOverlay();
+
+        // Fire-and-forget so the chime doesn't block the hook thread or the overlay.
+        _ = Task.Run(() => _audioFeedback.PlayStart());
+
         _recordingStartTime = DateTime.Now;
 
         try
@@ -73,6 +79,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         catch (Exception ex)
         {
             _logger.LogException(ex, "StartRecording failed");
+            _uiManager.HideRecordingOverlay();
             _dispatcher.Invoke(() =>
             {
                 MessageBox.Show(
@@ -83,8 +90,6 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             });
             return;
         }
-
-        _uiManager.ShowRecordingOverlay();
         ShowBalloon?.Invoke("Prompter — Recording", "Listening... Release the hotkey to stop.");
 
         _maxDurationCts?.Dispose();

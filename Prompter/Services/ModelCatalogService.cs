@@ -102,6 +102,22 @@ public class ModelCatalogService : IModelCatalogService
         }
     }
 
+    public async Task<bool> IsModelCachedAsync(string alias, CancellationToken ct = default)
+    {
+        try
+        {
+            await _accessor.InitializationCompleted;
+            var catalog = await _accessor.Manager.GetCatalogAsync();
+            var model = await catalog.GetModelAsync(alias, ct);
+            if (model == null) return false;
+            return await model.IsCachedAsync();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public async Task<List<(string Alias, string DisplayName)>> ListAvailableChatModelsAsync(CancellationToken ct = default)
     {
         await _accessor.InitializationCompleted;

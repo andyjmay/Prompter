@@ -5,14 +5,12 @@ namespace Prompter.Services;
 
 public class TextFormatter : ITextFormatter
 {
-    private readonly IFoundryLocalManagerAccessor _accessor;
     private readonly IModelManager _modelManager;
     private readonly IConfigService _configService;
     private readonly IFileLogger _fileLogger;
 
-    public TextFormatter(IFoundryLocalManagerAccessor accessor, IModelManager modelManager, IConfigService configService, IFileLogger fileLogger)
+    public TextFormatter(IModelManager modelManager, IConfigService configService, IFileLogger fileLogger)
     {
-        _accessor = accessor;
         _modelManager = modelManager;
         _configService = configService;
         _fileLogger = fileLogger;
@@ -20,15 +18,10 @@ public class TextFormatter : ITextFormatter
 
     public async Task<string> CleanupAsync(string rawText, FormatMode mode, CancellationToken ct)
     {
-        if (!_modelManager.ChatReady || _modelManager.LoadedChatModelAlias == null)
+        if (!_modelManager.ChatReady)
             throw new InvalidOperationException("Chat model not loaded");
 
-        var catalog = await _accessor.Manager.GetCatalogAsync();
-        var chatModel = await catalog.GetModelAsync(_modelManager.LoadedChatModelAlias);
-        if (chatModel == null)
-            throw new InvalidOperationException("Chat model not available in catalog");
-
-        var chatClient = await chatModel.GetChatClientAsync();
+        var chatClient = await _modelManager.GetChatClientAsync();
         var systemPrompt = GetSystemPrompt(mode);
 
         var messages = new List<ChatMessage>

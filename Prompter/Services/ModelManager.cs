@@ -1,4 +1,5 @@
 using System.Timers;
+using Microsoft.AI.Foundry.Local;
 using Prompter.Models;
 
 namespace Prompter.Services;
@@ -318,6 +319,20 @@ public class ModelManager : IModelManager, IAsyncDisposable
             await model.DownloadAsync(pct => ModelDownloadProgress?.Invoke(alias, pct));
             ModelDownloadProgress?.Invoke(alias, 100f);
         }
+    }
+
+    public async Task<OpenAIChatClient> GetChatClientAsync()
+    {
+        if (_chatModel == null || !_chatLoaded)
+            throw new InvalidOperationException("Chat model not loaded");
+        return await _chatModel.GetChatClientAsync();
+    }
+
+    public async Task<OpenAIAudioClient> GetAudioClientAsync()
+    {
+        if (_whisperModel == null || !_whisperLoaded)
+            throw new InvalidOperationException("Whisper model not loaded");
+        return await _whisperModel.GetAudioClientAsync();
     }
 
     private async Task CheckIdleAsync(int ttlMinutes, CancellationToken ct)

@@ -31,6 +31,8 @@ public partial class SettingsWindow : Window
     private PreviewToast? _previewToast;
     private readonly ITextFormatter _textFormatter;
     private CancellationTokenSource? _testCts;
+    private bool _populatingChatModels;
+    private bool _populatingWhisperModels;
 
     public SettingsWindow(
         IConfigService configService,
@@ -153,11 +155,13 @@ public partial class SettingsWindow : Window
 
     private async Task PopulateChatModelComboBoxAsync()
     {
+        _populatingChatModels = true;
         ChatModelComboBox.Items.Clear();
         ChatModelComboBox.Items.Add("Loading models…");
         ChatModelComboBox.IsEnabled = false;
         ChatModelComboBox.SelectedIndex = 0;
         LoadingModelsText.Visibility = Visibility.Visible;
+        ChatModelStatusText.Text = "";
         _displayNameToAlias.Clear();
 
         try
@@ -201,14 +205,20 @@ public partial class SettingsWindow : Window
             LoadingModelsText.Visibility = Visibility.Collapsed;
             ChatModelComboBox.SelectedItem = ModelCatalog.OtherOption;
         }
+        finally
+        {
+            _populatingChatModels = false;
+        }
     }
 
     private async Task PopulateWhisperModelComboBoxAsync()
     {
+        _populatingWhisperModels = true;
         WhisperModelComboBox.Items.Clear();
         WhisperModelComboBox.Items.Add("Loading models…");
         WhisperModelComboBox.IsEnabled = false;
         WhisperModelComboBox.SelectedIndex = 0;
+        WhisperModelStatusText.Text = "";
         _whisperDisplayNameToAlias.Clear();
 
         try
@@ -243,6 +253,10 @@ public partial class SettingsWindow : Window
             _whisperDisplayNameToAlias["whisper-tiny"] = "whisper-tiny";
             WhisperModelComboBox.SelectedIndex = 0;
             WhisperModelComboBox.IsEnabled = true;
+        }
+        finally
+        {
+            _populatingWhisperModels = false;
         }
     }
 
@@ -347,15 +361,59 @@ public partial class SettingsWindow : Window
 
     private void ChatModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_populatingChatModels) return;
+
         var selected = ChatModelComboBox.SelectedItem as string;
+        if (selected == null) return;
         if (selected == ModelCatalog.OtherOption)
         {
             CustomModelTextBox.Visibility = Visibility.Visible;
+            ChatModelStatusText.Text = "";
         }
         else
         {
             CustomModelTextBox.Visibility = Visibility.Collapsed;
             CustomModelTextBox.Text = string.Empty;
+            var alias = _displayNameToAlias.TryGetValue(selected, out var a) ? a : selected;
+            _ = DownloadModelOnDemandAsync(alias, ChatModelStatusText);
+        }
+    }
+
+    private void WhisperModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_populatingWhisperModels) return;
+
+        var selected = WhisperModelComboBox.SelectedItem as string;
+        if (selected == null) return;
+        var alias = _whisperDisplayNameToAlias.TryGetValue(selected, out var a) ? a : selected;
+        _ = DownloadModelOnDemandAsync(alias, WhisperModelStatusText);
+    }
+
+    private async Task DownloadModelOnDemandAsync(string? alias, TextBlock statusTextBlock)
+    {
+        if (string.IsNullOrWhiteSpace(alias)) return;
+
+        try
+        {
+            bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
+            if (isCached)
+            {
+                Dispatcher.Invoke(() => statusTextBlock.Text = "Cached ✓");
+                return;
+            }
+
+            Dispatcher.Invoke(() => statusTextBlock.Text = "Downloading…");
+            await _modelManager.DownloadModelAsync(alias);
+            Dispatcher.Invoke(() =>
+            {
+                statusTextBlock.Text = "Downloaded ✓";
+                _ = RefreshModelsDashboardAsync();
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, $"On-demand download failed for {alias}");
+            Dispatcher.Invoke(() => statusTextBlock.Text = "Download failed");
         }
     }
 
@@ -546,7 +604,7 @@ public partial class SettingsWindow : Window
 
         var selectedWhisperDisplay = WhisperModelComboBox.SelectedItem as string;
         var proposedWhisperAlias = selectedWhisperDisplay != null
-            ? _whisperDisplayNameToAlias.GetValueOrDefault(selectedWhisperDisplay, selectedWhisperDisplay)
+            ? (_whisperDisplayNameToAlias.TryGetValue(selectedWhisperDisplay, out var wa) ? wa! : selectedWhisperDisplay)
             : "whisper-tiny";
 
         var oldWhisperModel = _config.WhisperModelId;
@@ -555,7 +613,7 @@ public partial class SettingsWindow : Window
         var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
         var proposedAlias = selectedDisplay == ModelCatalog.OtherOption
             ? CustomModelTextBox.Text.Trim()
-            : _displayNameToAlias.GetValueOrDefault(selectedDisplay, selectedDisplay);
+            : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ca) ? ca! : selectedDisplay);
 
         if (string.IsNullOrWhiteSpace(proposedAlias))
         {
@@ -846,7 +904,7 @@ public partial class SettingsWindow : Window
             var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
             var alias = selectedDisplay == ModelCatalog.OtherOption
                 ? CustomModelTextBox.Text.Trim()
-                : _displayNameToAlias.GetValueOrDefault(selectedDisplay, selectedDisplay);
+                : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ta) ? ta! : selectedDisplay);
 
             if (string.IsNullOrWhiteSpace(alias))
             {

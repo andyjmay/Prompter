@@ -515,7 +515,8 @@
 
                         <StackPanel Margin="0,0,10,0">
                             <TextBlock Text="Speech Model (Whisper)" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
-                            <ComboBox x:Name="WhisperModelComboBox" HorizontalAlignment="Stretch"/>
+                            <ComboBox x:Name="WhisperModelComboBox" SelectionChanged="WhisperModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
+                            <TextBlock x:Name="WhisperModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
@@ -525,6 +526,7 @@
                             </StackPanel>
                             <ComboBox x:Name="ChatModelComboBox" SelectionChanged="ChatModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
                             <TextBox x:Name="CustomModelTextBox" Margin="0,6,0,0" Visibility="Collapsed" ToolTip="Enter the exact Foundry Local model alias"/>
+                            <TextBlock x:Name="ChatModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
                         </StackPanel>
                     </Grid>
 
