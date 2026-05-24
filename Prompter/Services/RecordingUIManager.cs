@@ -23,7 +23,11 @@ public class RecordingUIManager : IRecordingUIManager
     {
         _dispatcher.Invoke(() =>
         {
-            _overlay = new RecordingOverlay();
+            var config = _configService.Load();
+            if (config.RecordingOverlay?.Enabled != true)
+                return;
+
+            _overlay = new RecordingOverlay(config.RecordingOverlay, config.OverlayStyle);
             _overlay.Show();
         });
     }
@@ -37,12 +41,24 @@ public class RecordingUIManager : IRecordingUIManager
         });
     }
 
+    public void UpdateAudioLevel(double normalizedLevel)
+    {
+        _dispatcher.Invoke(() =>
+        {
+            _overlay?.UpdateAudioLevel(normalizedLevel);
+        });
+    }
+
     public void ShowPreviewToast(string text)
     {
         _dispatcher.Invoke(() =>
         {
+            var config = _configService.Load();
+            if (config.PreviewToast?.Placement?.Enabled != true)
+                return;
+
             _preview?.Close();
-            _preview = new PreviewToast(text, _clipboardService);
+            _preview = new PreviewToast(text, _clipboardService, config.PreviewToast, config.OverlayStyle);
             _preview.Show();
         });
     }

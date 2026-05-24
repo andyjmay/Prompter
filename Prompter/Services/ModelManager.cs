@@ -118,15 +118,17 @@ public class ModelManager : IModelManager, IAsyncDisposable
 
             if (needsReload)
             {
+                var loadedAlias = targetChatAlias;
                 _chatModel = await TryLoadChatModelAsync(catalog, targetChatAlias);
                 if (_chatModel == null)
                 {
                     _fileLogger.Log($"Configured chat model '{targetChatAlias}' unavailable. Falling back to default '{ModelCatalog.DefaultChatAlias}'.");
-                    _chatModel = await TryLoadChatModelAsync(catalog, ModelCatalog.DefaultChatAlias);
+                    loadedAlias = ModelCatalog.DefaultChatAlias;
+                    _chatModel = await TryLoadChatModelAsync(catalog, loadedAlias);
                     if (_chatModel == null)
                         throw new InvalidOperationException($"Could not load chat model '{targetChatAlias}' or default '{ModelCatalog.DefaultChatAlias}'.");
                 }
-                _loadedChatAlias = targetChatAlias;
+                _loadedChatAlias = loadedAlias;
                 _chatLoaded = true;
             }
 

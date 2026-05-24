@@ -18,10 +18,13 @@
                              AutoReverse="True"/>
         </Storyboard>
     </Window.Resources>
-    <Border Background="#CC000000" CornerRadius="16" BorderBrush="#33FFFFFF" BorderThickness="1" Margin="0,16,0,0" Padding="20,12">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Ellipse x:Name="PulseDot" Width="14" Height="14" Fill="#FF3333" Margin="0,0,12,0"/>
-            <TextBlock Text="Listening..." Foreground="White" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+    <Border x:Name="RootBorder" CornerRadius="16" BorderThickness="1" Margin="0,16,0,0" Padding="20,12">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Ellipse x:Name="PulseDot" Width="14" Height="14" Margin="0,0,12,0"/>
+                <TextBlock x:Name="StatusText" Text="Listening..." FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            </StackPanel>
+            <ProgressBar x:Name="AudioMeter" Height="4" Margin="0,8,0,0" Maximum="1" Minimum="0" Value="0" Background="#22FFFFFF" BorderThickness="0" Visibility="Collapsed"/>
         </StackPanel>
     </Border>
 </Window>

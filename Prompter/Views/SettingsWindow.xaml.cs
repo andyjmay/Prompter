@@ -27,6 +27,8 @@ public partial class SettingsWindow : Window
     private readonly Dictionary<string, string> _whisperDisplayNameToAlias = new();
     private string? _activeSortBy;
     private ListSortDirection _activeSortDirection = ListSortDirection.Ascending;
+    private RecordingOverlay? _previewOverlay;
+    private PreviewToast? _previewToast;
 
     public SettingsWindow(
         IConfigService configService,
@@ -65,6 +67,84 @@ public partial class SettingsWindow : Window
         _ = PopulateWhisperModelComboBoxAsync();
         _ = RefreshModelsDashboardAsync();
         DetectGpuStatus();
+        InitializeAppearanceControls();
+    }
+
+    private void InitializeAppearanceControls()
+    {
+        foreach (var anchor in Enum.GetValues<OverlayAnchor>())
+        {
+            RecordingAnchorComboBox.Items.Add(anchor.ToString());
+            PreviewAnchorComboBox.Items.Add(anchor.ToString());
+        }
+
+        RecordingAnchorComboBox.SelectedItem = _config.RecordingOverlay.Anchor.ToString();
+        RecordingOffsetXTextBox.Text = _config.RecordingOverlay.OffsetX.ToString();
+        RecordingOffsetYTextBox.Text = _config.RecordingOverlay.OffsetY.ToString();
+        ShowRecordingOverlayCheckBox.IsChecked = _config.RecordingOverlay.Enabled;
+        ShowAudioMeterCheckBox.IsChecked = _config.RecordingOverlay.ShowAudioLevelMeter;
+
+        PreviewAnchorComboBox.SelectedItem = _config.PreviewToast.Placement.Anchor.ToString();
+        PreviewOffsetXTextBox.Text = _config.PreviewToast.Placement.OffsetX.ToString();
+        PreviewOffsetYTextBox.Text = _config.PreviewToast.Placement.OffsetY.ToString();
+        ShowPreviewToastCheckBox.IsChecked = _config.PreviewToast.Placement.Enabled;
+        ToastDurationSlider.Value = _config.PreviewToast.DurationSeconds;
+        ToastDurationValue.Text = _config.PreviewToast.DurationSeconds.ToString();
+
+        foreach (var theme in Enum.GetValues<OverlayTheme>())
+        {
+            ThemeComboBox.Items.Add(theme.ToString());
+        }
+        ThemeComboBox.SelectedItem = _config.OverlayStyle.Theme.ToString();
+        AccentColorTextBox.Text = _config.OverlayStyle.AccentColor ?? string.Empty;
+        OpacitySlider.Value = (int)Math.Round(_config.OverlayStyle.BackgroundOpacity * 100);
+        OpacityValue.Text = OpacitySlider.Value.ToString("F0") + "%";
+
+        ToastDurationSlider.ValueChanged += (_, e) => ToastDurationValue.Text = e.NewValue.ToString("F0");
+        OpacitySlider.ValueChanged += (_, e) =>
+        {
+            OpacityValue.Text = e.NewValue.ToString("F0") + "%";
+            UpdateMockups();
+        };
+        ThemeComboBox.SelectionChanged += (_, _) => UpdateMockups();
+        AccentColorTextBox.TextChanged += (_, _) => UpdateMockups();
+
+        UpdateMockups();
+    }
+
+    private void UpdateMockups()
+    {
+        var style = BuildStyleFromControls();
+        var brushes = ThemeResolver.Resolve(style);
+
+        RecordingMockup.Background = brushes.OverlayBackground;
+        RecordingMockup.BorderBrush = brushes.OverlayBorder;
+        RecordingMockupDot.Fill = brushes.Accent;
+        RecordingMockupText.Foreground = brushes.PrimaryText;
+
+        ToastMockup.Background = brushes.ToastBackground;
+        ToastMockup.BorderBrush = brushes.ToastBorder;
+        ToastMockupTitle.Foreground = brushes.PrimaryText;
+        ToastMockupBody.Foreground = brushes.SecondaryText;
+
+        if (!string.IsNullOrWhiteSpace(style.AccentColor) && brushes.Accent is System.Windows.Media.SolidColorBrush sb)
+        {
+            AccentPreview.Background = new System.Windows.Media.SolidColorBrush(sb.Color);
+        }
+        else
+        {
+            AccentPreview.Background = System.Windows.Media.Brushes.Transparent;
+        }
+    }
+
+    private OverlayStyleConfig BuildStyleFromControls()
+    {
+        var themeText = ThemeComboBox.SelectedItem as string ?? "Dark";
+        var theme = Enum.TryParse<OverlayTheme>(themeText, out var t) ? t : OverlayTheme.Dark;
+        var accent = AccentColorTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(accent)) accent = null;
+        var opacity = OpacitySlider.Value / 100.0;
+        return new OverlayStyleConfig { Theme = theme, AccentColor = accent, BackgroundOpacity = opacity };
     }
 
     private async Task PopulateChatModelComboBoxAsync()
@@ -497,6 +577,33 @@ public partial class SettingsWindow : Window
 
         _config = _config with { ChatModelId = proposedAlias };
 
+        var recordingAnchor = Enum.TryParse<OverlayAnchor>(RecordingAnchorComboBox.SelectedItem as string, out var ra) ? ra : OverlayAnchor.TopCenter;
+        var previewAnchor = Enum.TryParse<OverlayAnchor>(PreviewAnchorComboBox.SelectedItem as string, out var pa) ? pa : OverlayAnchor.BottomRight;
+
+        _config = _config with
+        {
+            RecordingOverlay = new OverlayPlacementConfig
+            {
+                Anchor = recordingAnchor,
+                OffsetX = int.TryParse(RecordingOffsetXTextBox.Text, out var rox) ? rox : 0,
+                OffsetY = int.TryParse(RecordingOffsetYTextBox.Text, out var roy) ? roy : 0,
+                Enabled = ShowRecordingOverlayCheckBox.IsChecked == true,
+                ShowAudioLevelMeter = ShowAudioMeterCheckBox.IsChecked == true
+            },
+            PreviewToast = new PreviewToastSpecificConfig
+            {
+                Placement = new OverlayPlacementConfig
+                {
+                    Anchor = previewAnchor,
+                    OffsetX = int.TryParse(PreviewOffsetXTextBox.Text, out var pox) ? pox : 0,
+                    OffsetY = int.TryParse(PreviewOffsetYTextBox.Text, out var poy) ? poy : 0,
+                    Enabled = ShowPreviewToastCheckBox.IsChecked == true
+                },
+                DurationSeconds = (int)ToastDurationSlider.Value
+            },
+            OverlayStyle = BuildStyleFromControls()
+        };
+
         _startupService.SetEnabled(_config.AutoStartWithWindows);
         await _configService.SaveAsync(_config);
 
@@ -571,6 +678,59 @@ public partial class SettingsWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private void Preview_Click(object sender, RoutedEventArgs e)
+    {
+        _previewOverlay?.Close();
+        _previewOverlay = null;
+        _previewToast?.Close();
+        _previewToast = null;
+
+        var style = BuildStyleFromControls();
+
+        var recordingAnchor = Enum.TryParse<OverlayAnchor>(RecordingAnchorComboBox.SelectedItem as string, out var ra) ? ra : OverlayAnchor.TopCenter;
+        var recordingPlacement = new OverlayPlacementConfig
+        {
+            Anchor = recordingAnchor,
+            OffsetX = int.TryParse(RecordingOffsetXTextBox.Text, out var rox) ? rox : 0,
+            OffsetY = int.TryParse(RecordingOffsetYTextBox.Text, out var roy) ? roy : 0,
+            Enabled = true
+        };
+
+        var previewAnchor = Enum.TryParse<OverlayAnchor>(PreviewAnchorComboBox.SelectedItem as string, out var pa) ? pa : OverlayAnchor.BottomRight;
+        var previewPlacement = new OverlayPlacementConfig
+        {
+            Anchor = previewAnchor,
+            OffsetX = int.TryParse(PreviewOffsetXTextBox.Text, out var pox) ? pox : 0,
+            OffsetY = int.TryParse(PreviewOffsetYTextBox.Text, out var poy) ? poy : 0,
+            Enabled = true
+        };
+
+        var previewToastConfig = new PreviewToastSpecificConfig
+        {
+            Placement = previewPlacement,
+            DurationSeconds = (int)ToastDurationSlider.Value
+        };
+
+        _previewOverlay = new RecordingOverlay(recordingPlacement, style);
+        _previewOverlay.Show();
+
+        _previewToast = new PreviewToast(
+            "This is a preview of how your transcribed text will appear.",
+            _clipboardService,
+            previewToastConfig,
+            style);
+        _previewToast.Show();
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        _previewOverlay?.Close();
+        _previewOverlay = null;
+        _previewToast?.Close();
+        _previewToast = null;
     }
 
     private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)

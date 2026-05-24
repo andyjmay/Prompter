@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using Prompter.Models;
 using Prompter.Services;
 
 namespace Prompter.Views;
@@ -9,21 +10,31 @@ namespace Prompter.Views;
 public partial class PreviewToast : Window, IDisposable
 {
     private readonly IClipboardService _clipboard;
+    private readonly PreviewToastSpecificConfig _config;
     private readonly DispatcherTimer _timer;
     private bool _mouseOver;
     private bool _disposed;
 
-    public PreviewToast(string text, IClipboardService clipboard)
+    public PreviewToast(string text, IClipboardService clipboard, PreviewToastSpecificConfig config, OverlayStyleConfig style)
     {
         InitializeComponent();
         _clipboard = clipboard;
+        _config = config;
         OutputText.Text = text;
 
-        var screen = ScreenHelper.GetActiveMonitorWorkArea();
-        Left = screen.Right - Width - 16;
-        Top = screen.Bottom - Height - 16;
+        var brushes = ThemeResolver.Resolve(style);
+        RootBorder.Background = brushes.ToastBackground;
+        RootBorder.BorderBrush = brushes.ToastBorder;
+        TitleText.Foreground = brushes.PrimaryText;
+        OutputText.Foreground = brushes.SecondaryText;
+        CopyButton.Background = brushes.ButtonBackground;
+        CopyButton.Foreground = brushes.PrimaryText;
+        CopyButton.BorderBrush = brushes.ButtonBorder;
+        DismissButton.Background = brushes.ButtonBackground;
+        DismissButton.Foreground = brushes.PrimaryText;
+        DismissButton.BorderBrush = brushes.ButtonBorder;
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(config.DurationSeconds) };
         _timer.Tick += (_, _) =>
         {
             if (!_mouseOver) Close();
@@ -43,6 +54,14 @@ public partial class PreviewToast : Window, IDisposable
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        var (left, top) = OverlayPositioner.ComputePosition(
+            this,
+            _config.Placement.Anchor,
+            _config.Placement.OffsetX,
+            _config.Placement.OffsetY);
+        Left = left;
+        Top = top;
+
         _timer.Start();
     }
 

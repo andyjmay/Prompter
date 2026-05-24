@@ -55,6 +55,7 @@ public class RecordingSession : IRecordingSession
     public string? RecordedFilePath => _tempPath;
 
     public event Action<Exception>? RecordingError;
+    public event Action<double>? AudioLevelAvailable;
     public event Action? Disposed;
 
     public RecordingSession(IFileLogger logger)
@@ -95,12 +96,31 @@ public class RecordingSession : IRecordingSession
             {
                 _writer?.Write(e.Buffer, 0, e.BytesRecorded);
             }
+
+            double level = ComputeAudioLevel(e.Buffer, e.BytesRecorded);
+            AudioLevelAvailable?.Invoke(level);
         }
         catch (Exception ex)
         {
             _logger.LogException(ex, "AudioRecorderService.OnDataAvailable");
             RecordingError?.Invoke(ex);
         }
+    }
+
+    private static double ComputeAudioLevel(byte[] buffer, int bytesRecorded)
+    {
+        if (bytesRecorded == 0) return 0;
+        double sum = 0;
+        int sampleCount = bytesRecorded / 2;
+        for (int i = 0; i < bytesRecorded; i += 2)
+        {
+            short sample = (short)(buffer[i] | (buffer[i + 1] << 8));
+            double normalized = sample / 32768.0;
+            sum += normalized * normalized;
+        }
+        double rms = Math.Sqrt(sum / sampleCount);
+        // Apply slight scaling to make quiet speech visible (clamp to 0-1)
+        return Math.Min(rms * 3.0, 1.0);
     }
 
     public void StopRecording()

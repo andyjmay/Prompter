@@ -8,9 +8,52 @@ public enum FormatMode
     Debug
 }
 
+public enum OverlayTheme
+{
+    Dark,
+    Light,
+    HighContrast,
+    Minimal
+}
+
+public enum OverlayAnchor
+{
+    TopLeft,
+    TopCenter,
+    TopRight,
+    MiddleLeft,
+    Center,
+    MiddleRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight
+}
+
+public record OverlayPlacementConfig
+{
+    public OverlayAnchor Anchor { get; init; } = OverlayAnchor.TopCenter;
+    public int OffsetX { get; init; } = 0;
+    public int OffsetY { get; init; } = 0;
+    public bool Enabled { get; init; } = true;
+    public bool ShowAudioLevelMeter { get; init; } = true;
+}
+
+public record OverlayStyleConfig
+{
+    public OverlayTheme Theme { get; init; } = OverlayTheme.Dark;
+    public string? AccentColor { get; init; } = null;
+    public double BackgroundOpacity { get; init; } = 0.8;
+}
+
+public record PreviewToastSpecificConfig
+{
+    public OverlayPlacementConfig Placement { get; init; } = new() { Anchor = OverlayAnchor.BottomRight, OffsetX = -16, OffsetY = -16 };
+    public int DurationSeconds { get; init; } = 3;
+}
+
 public record AppConfig
 {
-    public int Version { get; init; } = 1;
+    public int Version { get; init; } = 2;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public FormatMode DefaultMode { get; init; } = FormatMode.Standard;
@@ -25,4 +68,8 @@ public record AppConfig
     public bool UseClipboardPaste { get; init; } = true;
     public int ProcessingTimeoutSeconds { get; init; } = 120;
     public string? CustomSystemPrompt { get; init; }
+
+    public OverlayPlacementConfig RecordingOverlay { get; init; } = new() { OffsetY = 40 };
+    public PreviewToastSpecificConfig PreviewToast { get; init; } = new();
+    public OverlayStyleConfig OverlayStyle { get; init; } = new();
 }

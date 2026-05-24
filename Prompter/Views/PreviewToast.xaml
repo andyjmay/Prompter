@@ -9,20 +9,20 @@
         Width="400"
         Height="160"
         Loaded="Window_Loaded">
-    <Border Background="#FF2D2D2D" CornerRadius="8" Padding="16" BorderBrush="#FF444444" BorderThickness="1">
+    <Border x:Name="RootBorder" CornerRadius="8" Padding="16" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock Text="Prompter Output" Foreground="White" FontWeight="Bold" FontSize="14" Grid.Row="0"/>
+            <TextBlock x:Name="TitleText" Text="Prompter Output" FontWeight="Bold" FontSize="14" Grid.Row="0"/>
             <ScrollViewer Grid.Row="1" Margin="0,8,0,8" VerticalScrollBarVisibility="Auto">
-                <TextBlock x:Name="OutputText" Foreground="#FFE0E0E0" TextWrapping="Wrap" FontSize="12"/>
+                <TextBlock x:Name="OutputText" TextWrapping="Wrap" FontSize="12"/>
             </ScrollViewer>
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Copy" Width="60" Margin="0,0,8,0" Click="Copy_Click" Background="#FF3C3C3C" Foreground="White" BorderBrush="#FF555555"/>
-                <Button Content="Dismiss" Width="60" Click="Dismiss_Click" Background="#FF3C3C3C" Foreground="White" BorderBrush="#FF555555"/>
+                <Button x:Name="CopyButton" Content="Copy" Width="60" Margin="0,0,8,0" Click="Copy_Click" />
+                <Button x:Name="DismissButton" Content="Dismiss" Width="60" Click="Dismiss_Click" />
             </StackPanel>
         </Grid>
     </Border>

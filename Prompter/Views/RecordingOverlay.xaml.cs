@@ -1,23 +1,48 @@
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Animation;
+using Prompter.Models;
 using Prompter.Services;
 
 namespace Prompter.Views;
 
 public partial class RecordingOverlay : Window
 {
-    public RecordingOverlay()
+    private readonly OverlayPlacementConfig _placement;
+
+    public RecordingOverlay(OverlayPlacementConfig placement, OverlayStyleConfig style)
     {
         InitializeComponent();
+        _placement = placement;
         Loaded += OnLoaded;
+
+        var brushes = ThemeResolver.Resolve(style);
+        RootBorder.Background = brushes.OverlayBackground;
+        RootBorder.BorderBrush = brushes.OverlayBorder;
+        PulseDot.Fill = brushes.Accent;
+        StatusText.Foreground = brushes.PrimaryText;
+        AudioMeter.Foreground = brushes.Accent;
+
+        if (placement.ShowAudioLevelMeter)
+        {
+            AudioMeter.Visibility = Visibility.Visible;
+        }
+    }
+
+    public void UpdateAudioLevel(double level)
+    {
+        AudioMeter.Value = level;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var screen = ScreenHelper.GetActiveMonitorWorkArea();
-        Left = screen.Left + (screen.Width - Width) / 2;
-        Top = screen.Top + 40;
+        var (left, top) = OverlayPositioner.ComputePosition(
+            this,
+            _placement.Anchor,
+            _placement.OffsetX,
+            _placement.OffsetY);
+        Left = left;
+        Top = top;
 
         if (Resources["PulseStoryboard"] is Storyboard sb)
         {

@@ -65,6 +65,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             _session = _recorder.StartRecording();
             _session.RecordingError += OnRecordingError;
+            _session.AudioLevelAvailable += OnAudioLevelAvailable;
             _session.Begin();
         }
         catch (Exception ex)
@@ -117,6 +118,11 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         });
+    }
+
+    private void OnAudioLevelAvailable(double level)
+    {
+        _uiManager.UpdateAudioLevel(level);
     }
 
     public void StopRecordingAndProcess(FormatMode mode)
@@ -198,6 +204,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         }
 
         var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
+        rawText = rawText.Trim();
         if (string.IsNullOrWhiteSpace(rawText))
         {
             _logger.Log("Transcription empty.");

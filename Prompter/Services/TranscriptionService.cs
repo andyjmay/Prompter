@@ -31,7 +31,8 @@ public class TranscriptionService : ITranscriptionService
         await foreach (var chunk in stream)
         {
             ct.ThrowIfCancellationRequested();
-            sb.Append(chunk.Text);
+            var text = chunk.Text.Replace("[BLANK_AUDIO]", string.Empty, StringComparison.OrdinalIgnoreCase);
+            sb.Append(text);
         }
 
         _fileLogger.Log($"Transcription: {sb}");

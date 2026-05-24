@@ -44,6 +44,10 @@ public class ConfigService : IConfigService
             }
 
             _cached = Migrate(deserialized);
+            if (_cached != deserialized)
+            {
+                SaveToDisk(_cached);
+            }
             return _cached;
         }
     }
@@ -74,7 +78,17 @@ public class ConfigService : IConfigService
 
     private static AppConfig Migrate(AppConfig config)
     {
-        // Future migrations go here based on config.Version
-        return config with { Version = 1 };
+        var migrated = config.Version switch
+        {
+            < 2 => config with { Version = 2 },
+            _ => config
+        };
+
+        return migrated with
+        {
+            RecordingOverlay = migrated.RecordingOverlay ?? new(),
+            PreviewToast = migrated.PreviewToast ?? new(),
+            OverlayStyle = migrated.OverlayStyle ?? new()
+        };
     }
 }
