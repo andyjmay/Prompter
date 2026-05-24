@@ -204,6 +204,24 @@ public partial class CustomModelManagerWindow : Window
             SizeDescription = "~2.5 GB",
             Status = "Checking..."
         });
+        _recommendedModels.Add(new RecommendedModelInfo
+        {
+            DisplayName = "Llama 3.2 1B Instruct",
+            Description = "Meta's fast small model. Good instruction following (INT4).",
+            RepoId = "onnx-community/Llama-3.2-1B-Instruct-GENAI-ONNX",
+            FileName = "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
+            SizeDescription = "~700 MB",
+            Status = "Checking..."
+        });
+        _recommendedModels.Add(new RecommendedModelInfo
+        {
+            DisplayName = "Llama 3.2 3B Instruct",
+            Description = "Meta's balanced model. Stronger correction than 1B (INT4).",
+            RepoId = "onnx-community/Llama-3.2-3B-Instruct-GENAI-ONNX",
+            FileName = "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
+            SizeDescription = "~1.8 GB",
+            Status = "Checking..."
+        });
     }
 
     private void RefreshLists()

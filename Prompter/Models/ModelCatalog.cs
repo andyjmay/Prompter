@@ -25,6 +25,8 @@ public static class ModelCatalog
         ["gemma-3-4b-it"] = new("~2.5 GB", "Text Correction", 2500f),
         ["gemma-3-1b-it"] = new("~0.6 GB", "Text Correction", 600f),
         ["gemma-3-270m-it"] = new("~200 MB", "Text Correction", 200f),
+        ["llama-3.2-1b-instruct-genai-onnx"] = new("~700 MB", "Text Correction", 700f),
+        ["llama-3.2-3b-instruct-genai-onnx"] = new("~1.8 GB", "Text Correction", 1800f),
     };
 
     public static string GetSizeDescription(string alias)
