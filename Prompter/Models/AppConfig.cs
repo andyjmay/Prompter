@@ -61,6 +61,7 @@ public record AppConfig
     public bool AutoStartWithWindows { get; init; } = false;
     public bool AudioFeedbackEnabled { get; init; } = false;
     public bool NotificationsEnabled { get; init; } = true;
+    public bool NotifyOnOutputReady { get; init; } = true;
     public string Language { get; init; } = "en";
     public string ChatModelId { get; init; } = "phi-3.5-mini";
     public string WhisperModelId { get; init; } = "whisper-tiny";

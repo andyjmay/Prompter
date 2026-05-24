@@ -62,6 +62,7 @@ public partial class SettingsWindow : Window
         AutoStartCheckBox.IsChecked = _config.AutoStartWithWindows;
         AudioFeedbackCheckBox.IsChecked = _config.AudioFeedbackEnabled;
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
+        NotifyOnOutputReadyCheckBox.IsChecked = _config.NotifyOnOutputReady;
         CustomPromptTextBox.Text = _config.CustomSystemPrompt ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
@@ -589,6 +590,7 @@ public partial class SettingsWindow : Window
             AutoStartWithWindows = AutoStartCheckBox.IsChecked == true,
             AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true,
             NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
+            NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true,
             CustomSystemPrompt = string.IsNullOrWhiteSpace(CustomPromptTextBox.Text) ? null : CustomPromptTextBox.Text.Trim()
         };
 
@@ -892,6 +894,8 @@ public partial class SettingsWindow : Window
     private async void TestModelButton_Click(object sender, RoutedEventArgs e)
     {
         TestModelButton.IsEnabled = false;
+        TestResultTextBlock.Visibility = Visibility.Visible;
+        TestErrorIndicator.Visibility = Visibility.Collapsed;
         TestResultTextBlock.Text = "Running...";
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -899,19 +903,22 @@ public partial class SettingsWindow : Window
         _testCts = new CancellationTokenSource();
         var ct = _testCts.Token;
 
+        var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
+        var alias = selectedDisplay == ModelCatalog.OtherOption
+            ? CustomModelTextBox.Text.Trim()
+            : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ta) ? ta! : selectedDisplay);
+
+        if (string.IsNullOrWhiteSpace(alias))
+        {
+            TestResultTextBlock.Visibility = Visibility.Visible;
+            TestErrorIndicator.Visibility = Visibility.Collapsed;
+            TestResultTextBlock.Text = "Please select a chat model first.";
+            TestModelButton.IsEnabled = true;
+            return;
+        }
+
         try
         {
-            var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
-            var alias = selectedDisplay == ModelCatalog.OtherOption
-                ? CustomModelTextBox.Text.Trim()
-                : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ta) ? ta! : selectedDisplay);
-
-            if (string.IsNullOrWhiteSpace(alias))
-            {
-                TestResultTextBlock.Text = "Please select a chat model first.";
-                return;
-            }
-
             TestResultTextBlock.Text = $"Loading {alias}...";
             await _modelManager.EnsureChatModelLoadedAsync(alias);
 
@@ -936,7 +943,12 @@ public partial class SettingsWindow : Window
         {
             sw.Stop();
             _logger.LogException(ex, "Model speed test failed");
-            TestResultTextBlock.Text = $"Error after {sw.Elapsed.TotalSeconds:F2}s: {ex.Message}";
+            var msg = ex.Message.Contains("Could not load chat model", StringComparison.OrdinalIgnoreCase)
+                ? $"Model '{alias}' is not available in the catalog. Please select a valid model from the dropdown and try again."
+                : ex.Message;
+            TestResultTextBlock.Visibility = Visibility.Collapsed;
+            TestErrorIndicator.Visibility = Visibility.Visible;
+            TestErrorToolTipText.Text = $"Error after {sw.Elapsed.TotalSeconds:F2}s: {msg}";
         }
         finally
         {

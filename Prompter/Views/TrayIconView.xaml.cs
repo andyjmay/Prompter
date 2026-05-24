@@ -13,4 +13,9 @@ public partial class TrayIconView : Window
     {
         Hide();
     }
+
+    private void Window_Closed(object? sender, EventArgs e)
+    {
+        TrayIcon.Dispose();
+    }
 }

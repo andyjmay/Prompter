@@ -322,7 +322,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         if (_recordingGeneration == generation)
         {
             _uiManager.HideRecordingOverlay();
-            _uiManager.ShowPreviewToast(finalText);
+            if (cfg.NotifyOnOutputReady)
+            {
+                _uiManager.ShowPreviewToast(finalText);
+            }
         }
         OutputReady?.Invoke(finalText);
     }

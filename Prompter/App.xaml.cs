@@ -156,13 +156,20 @@ public partial class App : Application
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
-        if (_serviceProvider is IAsyncDisposable asyncDisposable)
+        try
         {
-            asyncDisposable.DisposeAsync().AsTask().Wait();
+            if (_serviceProvider is IAsyncDisposable asyncDisposable)
+            {
+                asyncDisposable.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(5));
+            }
+            else
+            {
+                (_serviceProvider as IDisposable)?.Dispose();
+            }
         }
-        else
+        catch
         {
-            (_serviceProvider as IDisposable)?.Dispose();
+            // Best-effort disposal on exit; don't block shutdown.
         }
 
         if (_singleInstanceMutex != null)

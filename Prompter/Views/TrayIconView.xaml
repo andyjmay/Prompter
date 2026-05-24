@@ -8,13 +8,14 @@
         AllowsTransparency="True"
         Background="Transparent"
         Width="0" Height="0"
-        Loaded="Window_Loaded">
+        Loaded="Window_Loaded"
+        Closed="Window_Closed">
     <Grid>
         <tb:TaskbarIcon x:Name="TrayIcon"
                         IconSource="/Assets/prompter.ico"
                         ToolTipText="Prompter"
                         LeftClickCommand="{Binding OpenSettingsCommand}"
-                        MenuActivation="LeftOrRightClick">
+                         MenuActivation="RightClick">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                     <MenuItem Header="Mode">

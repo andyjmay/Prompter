@@ -179,25 +179,25 @@ public class ModelManager : IModelManager, IAsyncDisposable
         {
             if (_disposed) throw new ObjectDisposedException(nameof(ModelManager));
 
-            if (_chatModel != null && _loadedChatAlias != alias)
+            if (_chatModel != null && _loadedChatAlias == alias)
+                return;
+
+            var catalog = await _accessor.Manager.GetCatalogAsync();
+            var newModel = await TryLoadModelAsync(catalog, alias);
+            if (newModel == null)
             {
-                _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{alias}'. Unloading old model.");
+                _lastFailureByAlias[alias] = DateTime.Now;
+                throw new InvalidOperationException($"Could not load chat model '{alias}'.");
+            }
+
+            if (_chatModel != null)
+            {
                 await _chatModel.UnloadAsync();
-                _chatModel = null;
-                _chatLoaded = false;
-                _loadedChatAlias = null;
             }
 
-            if (_chatModel == null)
-            {
-                var catalog = await _accessor.Manager.GetCatalogAsync();
-                _chatModel = await TryLoadModelAsync(catalog, alias);
-                if (_chatModel == null)
-                    throw new InvalidOperationException($"Could not load chat model '{alias}'.");
-                _loadedChatAlias = alias;
-                _chatLoaded = true;
-            }
-
+            _chatModel = newModel;
+            _loadedChatAlias = alias;
+            _chatLoaded = true;
             _lastUsed = DateTime.Now;
         }
         finally
