@@ -61,7 +61,10 @@ public class ModelCatalogService : IModelCatalogService
                 bool isCached = false;
                 try { isCached = await m.IsCachedAsync(); } catch { }
 
-                string size = ModelCatalog.GetSizeDescription(alias);
+                float? sizeMb = info?.FileSizeMb ?? ModelCatalog.GetSizeInMegabytes(alias);
+                string size = sizeMb is { } mb
+                    ? mb >= 1000 ? $"~{mb / 1000:F1} GB" : $"~{mb:F0} MB"
+                    : "Unknown";
 
                 result.Add(new ModelStatusInfo
                 {
@@ -70,6 +73,7 @@ public class ModelCatalogService : IModelCatalogService
                     IsCached = isCached,
                     IsLoaded = false, // ModelManager owns loaded state, updated by caller
                     SizeDescription = size,
+                    SizeInMegabytes = sizeMb,
                     TaskType = isWhisper ? "Speech Transcription" : "Text Correction"
                 });
             }

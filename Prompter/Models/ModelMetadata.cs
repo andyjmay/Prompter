@@ -1,3 +1,3 @@
 namespace Prompter.Models;
 
-public record ModelMetadata(string SizeDescription, string TaskType);
+public record ModelMetadata(string SizeDescription, string TaskType, float? SizeInMegabytes = null);

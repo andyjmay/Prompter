@@ -1,3 +1,4 @@
+using System.Collections;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -612,7 +613,7 @@ public partial class SettingsWindow : Window
         {
             "Model Alias" => "Alias",
             "Type" => "TaskType",
-            "Size" => "SizeDescription",
+            "Size" => "SizeInMegabytes",
             "Downloaded" => "IsCached",
             "Loaded" => "IsLoaded",
             _ => null
@@ -622,11 +623,24 @@ public partial class SettingsWindow : Window
     private void Sort(string sortBy, ListSortDirection direction)
     {
         var dataView = CollectionViewSource.GetDefaultView(ModelsListView.ItemsSource);
-        if (dataView != null)
+        if (dataView is ListCollectionView listView)
+        {
+            listView.SortDescriptions.Clear();
+            if (sortBy == "SizeInMegabytes")
+            {
+                listView.CustomSort = new SizeInMegabytesComparer(direction);
+            }
+            else
+            {
+                listView.CustomSort = null;
+                listView.SortDescriptions.Add(new SortDescription(sortBy, direction));
+            }
+            listView.Refresh();
+        }
+        else if (dataView != null)
         {
             dataView.SortDescriptions.Clear();
-            SortDescription sd = new SortDescription(sortBy, direction);
-            dataView.SortDescriptions.Add(sd);
+            dataView.SortDescriptions.Add(new SortDescription(sortBy, direction));
             dataView.Refresh();
         }
     }
@@ -683,4 +697,21 @@ public class BoolToBrushConverter : System.Windows.Data.IValueConverter
     }
 
     public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture) => throw new System.NotImplementedException();
+}
+
+public class SizeInMegabytesComparer : IComparer
+{
+    private readonly ListSortDirection _direction;
+    public SizeInMegabytesComparer(ListSortDirection direction) => _direction = direction;
+
+    public int Compare(object? x, object? y)
+    {
+        if (x is not ModelStatusInfo a || y is not ModelStatusInfo b)
+            return 0;
+
+        var av = a.SizeInMegabytes ?? float.MaxValue;
+        var bv = b.SizeInMegabytes ?? float.MaxValue;
+        var result = av.CompareTo(bv);
+        return _direction == ListSortDirection.Ascending ? result : -result;
+    }
 }
