@@ -177,6 +177,7 @@ public partial class App : Application
     private static void ConfigureServices(IServiceCollection services)
     {
         // Core infrastructure
+        services.AddSingleton(Dispatcher.CurrentDispatcher);
         services.AddSingleton<IFileLogger, FileLogger>();
         services.AddSingleton<IConfigService, ConfigService>();
         services.AddSingleton<IStartupService, StartupService>();
