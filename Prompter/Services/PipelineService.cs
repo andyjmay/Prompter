@@ -24,6 +24,12 @@ public class PipelineService : IDisposable
     public event Action<string>? OutputReady;
     public event Action<string, string>? ShowBalloon;
 
+    private void ShowBalloonIfEnabled(string title, string message)
+    {
+        if (_configService.Load().NotificationsEnabled)
+            ShowBalloon?.Invoke(title, message);
+    }
+
     public PipelineService(
         AudioRecorderService recorder,
         FoundryOrchestrator foundry,
@@ -59,10 +65,13 @@ public class PipelineService : IDisposable
         };
     }
 
+    private DateTime _recordingStartTime;
+
     public void StartRecording()
     {
         _logger.Log("Pipeline: StartRecording called.");
         _audioFeedback.PlayStart();
+        _recordingStartTime = DateTime.Now;
 
         if (!_recorder.StartRecording())
         {
@@ -83,6 +92,8 @@ public class PipelineService : IDisposable
             _overlay = new RecordingOverlay();
             _overlay.Show();
         });
+
+        ShowBalloonIfEnabled("Prompter — Recording", "Listening... Release the hotkey to stop.");
 
         // 5-minute safety cap
         _maxDurationCts?.Dispose();
@@ -117,6 +128,21 @@ public class PipelineService : IDisposable
         _dispatcher.Invoke(() => _overlay?.Close());
         _overlay = null;
 
+        var elapsed = DateTime.Now - _recordingStartTime;
+        if (elapsed < TimeSpan.FromSeconds(1))
+        {
+            _logger.Log($"Recording was very short ({elapsed.TotalMilliseconds:F0} ms).");
+            ShowBalloonIfEnabled(
+                "Prompter — Recording too short",
+                "Hold the hotkey for at least a second while you speak.");
+            var shortPath = _recorder.RecordedFilePath;
+            if (!string.IsNullOrEmpty(shortPath) && File.Exists(shortPath))
+            {
+                try { File.Delete(shortPath); } catch { }
+            }
+            return;
+        }
+
         var wavPath = _recorder.RecordedFilePath;
         if (string.IsNullOrEmpty(wavPath) || !File.Exists(wavPath))
         {
@@ -133,6 +159,9 @@ public class PipelineService : IDisposable
             catch (Exception ex)
             {
                 _logger.LogException(ex, "Processing pipeline");
+                ShowBalloonIfEnabled(
+                    "Prompter — Processing failed",
+                    "Could not transcribe the recording. Check the logs for details.");
             }
             finally
             {
@@ -146,11 +175,22 @@ public class PipelineService : IDisposable
         var cfg = _configService.Load();
         var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
-        // Ensure whisper is ready
-        if (!_foundry.WhisperReady)
+        // Ensure models are loaded and up-to-date (handles model drift)
+        _logger.Log("Ensuring models are loaded...");
+        await _foundry.EnsureModelsLoadedAsync();
+
+        // Notify if chat model fallback occurred
+        var configuredAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
+            ? ModelCatalog.DefaultChatAlias
+            : cfg.ChatModelId;
+        if (_foundry.ChatReady && _foundry.LoadedChatModelAlias != configuredAlias)
         {
-            _logger.Log("Waiting for whisper to load...");
-            await _foundry.EnsureModelsLoadedAsync();
+            var loadedAlias = _foundry.LoadedChatModelAlias!;
+            var loadedDisplay = await _foundry.GetModelDisplayNameAsync(loadedAlias) ?? loadedAlias;
+            _logger.Log($"Chat model fallback active. Configured: {configuredAlias}, Loaded: {_foundry.LoadedChatModelAlias}.");
+            ShowBalloonIfEnabled(
+                "Prompter — Model fallback",
+                $"Chat model '{configuredAlias}' was unavailable. Using '{loadedDisplay}' instead.");
         }
 
         var rawText = await _foundry.TranscribeAsync(wavPath, cfg.Language, cts.Token);
@@ -162,7 +202,36 @@ public class PipelineService : IDisposable
 
         string finalText;
         bool usedFallback = false;
-        if (mode == FormatMode.Raw || !_foundry.ChatReady)
+
+        if (mode == FormatMode.Debug)
+        {
+            // Debug mode: show both raw and formatted output
+            string formattedText;
+            string statusLine;
+
+            if (_foundry.ChatReady)
+            {
+                try
+                {
+                    formattedText = await _foundry.CleanupAsync(rawText, FormatMode.Standard, cts.Token);
+                    statusLine = "Chat model: " + (_foundry.LoadedChatModelAlias ?? "unknown");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, "CleanupAsync failed in Debug mode");
+                    formattedText = rawText;
+                    statusLine = "Chat model failed — raw text shown below";
+                }
+            }
+            else
+            {
+                formattedText = rawText;
+                statusLine = "Chat model not loaded — raw text shown below";
+            }
+
+            finalText = $"[RAW]{Environment.NewLine}{rawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
+        }
+        else if (mode == FormatMode.Raw || !_foundry.ChatReady)
         {
             if (mode != FormatMode.Raw)
             {
@@ -187,7 +256,7 @@ public class PipelineService : IDisposable
 
         if (usedFallback)
         {
-            ShowBalloon?.Invoke(
+            ShowBalloonIfEnabled(
                 "Prompter — Text formatted",
                 "The formatting model was unavailable. Outputting raw transcription.");
         }
@@ -198,12 +267,23 @@ public class PipelineService : IDisposable
         try
         {
             // Inject
-            _injector.TypeText(finalText);
-            _logger.Log("Text injected.");
+            if (cfg.UseClipboardPaste && finalText.Length >= cfg.PasteThresholdCharacters)
+            {
+                _dispatcher.Invoke(() => _clipboard.CopyText(finalText));
+                _injector.SimulatePaste();
+                // Wait for the target application to process the paste message before restoring original clipboard contents
+                await Task.Delay(150);
+                _logger.Log("Text pasted via clipboard.");
+            }
+            else
+            {
+                _injector.TypeText(finalText);
+                _logger.Log("Text injected.");
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogException(ex, "Text injection failed");
+            _logger.LogException(ex, "Text injection/paste failed");
         }
         finally
         {

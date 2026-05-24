@@ -11,7 +11,9 @@ public partial class WelcomeWindow : Window
     {
         InitializeComponent();
         _config = config;
-        HotkeyText.Text = $"{_config.HotkeyModifiers} + {_config.HotkeyKey}";
+        HotkeyText.Text = string.IsNullOrEmpty(_config.HotkeyKey)
+            ? _config.HotkeyModifiers
+            : $"{_config.HotkeyModifiers} + {_config.HotkeyKey}";
     }
 
     private void GotIt_Click(object sender, RoutedEventArgs e)

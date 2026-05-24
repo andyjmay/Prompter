@@ -60,22 +60,22 @@ public partial class App : Application
             startupService.SetEnabled(config.AutoStartWithWindows);
         }
 
-        _foundry = new FoundryOrchestrator(logger);
+        _foundry = new FoundryOrchestrator(logger, configService);
 
-        // On first run, report model download progress via tray balloon
-        if (isFirstRun)
+        // Report model download progress via tray balloon
+        _foundry.ModelDownloadProgress += (model, pct) =>
         {
-            _foundry.ModelDownloadProgress += (model, pct) =>
+            _trayView?.Dispatcher.Invoke(() =>
             {
-                _trayView?.Dispatcher.Invoke(() =>
+                if (configService.Load().NotificationsEnabled)
                 {
                     _trayView?.TrayIcon.ShowBalloonTip(
                         "Prompter — Downloading AI models",
                         $"{model}: {pct:F0}%",
                         Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
-                });
-            };
-        }
+                }
+            });
+        };
 
         _ = Task.Run(async () =>
         {
@@ -95,26 +95,58 @@ public partial class App : Application
 
         var hotkey = new HotkeyService(logger);
 
-        _trayVm = new TrayIconViewModel(configService, hotkey, _pipeline, clipboardService, startupService, logger);
+        _trayVm = new TrayIconViewModel(configService, hotkey, _pipeline, clipboardService, startupService, logger, _foundry);
         _pipeline.OutputReady += text => _trayVm.SetLastOutput(text);
 
         _trayView = new TrayIconView();
         _trayView.Loaded += (_, _) =>
         {
             _trayView.TrayIcon.DataContext = _trayVm;
-            _trayVm.Initialize(_trayView);
+            config = configService.Load();
+            bool hotkeyOk = false;
+            try
+            {
+                _trayVm.Initialize(_trayView);
+                hotkeyOk = true;
+            }
+            catch (Exception ex)
+            {
+                logger.LogException(ex, "Hotkey registration on startup");
+                var hotkeyDisplay = string.IsNullOrEmpty(config.HotkeyKey)
+                    ? config.HotkeyModifiers
+                    : $"{config.HotkeyModifiers} + {config.HotkeyKey}";
+                if (config.NotificationsEnabled)
+                {
+                    _trayView.TrayIcon.ShowBalloonTip(
+                        "Prompter — Hotkey Error",
+                        $"Could not register hotkey {hotkeyDisplay}. It may be in use by another app. Open Settings to change it.",
+                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Warning);
+                }
+                MessageBox.Show(
+                    $"Could not register the global hotkey '{hotkeyDisplay}'.\n\nIt may already be in use by another application. Please open Prompter Settings and choose a different hotkey.",
+                    "Prompter — Hotkey Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
 
             // Wire balloon from pipeline to tray icon
             _pipeline.ShowBalloon += (title, msg) =>
             {
-                _trayView?.TrayIcon.ShowBalloonTip(title, msg, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+                if (config.NotificationsEnabled)
+                    _trayView?.TrayIcon.ShowBalloonTip(title, msg, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
             };
 
             // Show startup balloon so the user knows the app is alive
-            _trayView.TrayIcon.ShowBalloonTip(
-                "Prompter is running",
-                $"Press and hold {config.HotkeyModifiers} + {config.HotkeyKey} to start dictating.",
-                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+            if (hotkeyOk && config.NotificationsEnabled)
+            {
+                var hotkeyDisplay = string.IsNullOrEmpty(config.HotkeyKey)
+                    ? config.HotkeyModifiers
+                    : $"{config.HotkeyModifiers} + {config.HotkeyKey}";
+                _trayView.TrayIcon.ShowBalloonTip(
+                    "Prompter is running",
+                    $"Press and hold {hotkeyDisplay} to start dictating.",
+                    Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+            }
         };
         _trayView.Show();
 

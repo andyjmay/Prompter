@@ -6,11 +6,22 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
-        Height="40"
-        Width="800">
-    <Border Background="#D0FF0000" CornerRadius="0" Height="8" VerticalAlignment="Bottom" Margin="0,0,0,0">
-        <Border.Effect>
-            <DropShadowEffect ShadowDepth="0" BlurRadius="8" Color="Red"/>
-        </Border.Effect>
+        ResizeMode="NoResize"
+        Height="100"
+        Width="320">
+    <Window.Resources>
+        <Storyboard x:Key="PulseStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="PulseDot"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1.0" To="0.3"
+                             Duration="0:0:0.8"
+                             AutoReverse="True"/>
+        </Storyboard>
+    </Window.Resources>
+    <Border Background="#CC000000" CornerRadius="16" BorderBrush="#33FFFFFF" BorderThickness="1" Margin="0,16,0,0" Padding="20,12">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Ellipse x:Name="PulseDot" Width="14" Height="14" Fill="#FF3333" Margin="0,0,12,0"/>
+            <TextBlock Text="Listening..." Foreground="White" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </StackPanel>
     </Border>
 </Window>

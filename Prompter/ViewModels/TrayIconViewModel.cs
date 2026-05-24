@@ -14,6 +14,7 @@ public class TrayIconViewModel : IDisposable
     private readonly ClipboardService _clipboardService;
     private readonly StartupService _startupService;
     private readonly FileLogger _logger;
+    private readonly FoundryOrchestrator _foundry;
     private AppConfig _config;
 
     private string? _lastOutput;
@@ -26,6 +27,7 @@ public class TrayIconViewModel : IDisposable
     public bool IsStandard => _config.DefaultMode == FormatMode.Standard;
     public bool IsFormal => _config.DefaultMode == FormatMode.Formal;
     public bool IsRaw => _config.DefaultMode == FormatMode.Raw;
+    public bool IsDebug => _config.DefaultMode == FormatMode.Debug;
 
     public TrayIconViewModel(
         ConfigService configService,
@@ -33,7 +35,8 @@ public class TrayIconViewModel : IDisposable
         PipelineService pipelineService,
         ClipboardService clipboardService,
         StartupService startupService,
-        FileLogger logger)
+        FileLogger logger,
+        FoundryOrchestrator foundry)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
@@ -41,6 +44,7 @@ public class TrayIconViewModel : IDisposable
         _clipboardService = clipboardService;
         _startupService = startupService;
         _logger = logger;
+        _foundry = foundry;
         _config = configService.Load();
 
         OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
@@ -77,39 +81,38 @@ public class TrayIconViewModel : IDisposable
         var oldKey = _config.HotkeyKey;
         var oldMods = _config.HotkeyModifiers;
 
-        var settings = new SettingsWindow(_configService, _clipboardService, _startupService, _logger);
+        _hotkeyService.Unregister();
+
+        var settings = new SettingsWindow(_configService, _clipboardService, _startupService, _logger, _foundry);
         settings.ShowDialog();
         _config = _configService.Load();
 
-        if (_config.HotkeyKey != oldKey || _config.HotkeyModifiers != oldMods)
+        _logger.Log($"Settings closed. Re-registering hotkey: {_config.HotkeyModifiers}+{_config.HotkeyKey}.");
+        if (_hostWindow != null)
         {
-            _logger.Log($"Hotkey changed from {oldMods}+{oldKey} to {_config.HotkeyModifiers}+{_config.HotkeyKey}. Re-registering...");
-            if (_hostWindow != null)
+            try
             {
+                _hotkeyService.Dispose();
+                _hotkeyService.Initialize(_hostWindow, _config.HotkeyModifiers, _config.HotkeyKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Hotkey re-registration failed");
+                MessageBox.Show(
+                    $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}'.\n\nIt may already be in use by another application. Reverting to the previous hotkey.",
+                    "Hotkey Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                _config.HotkeyKey = oldKey;
+                _config.HotkeyModifiers = oldMods;
+                _ = _configService.SaveAsync(_config);
                 try
                 {
-                    _hotkeyService.Dispose();
-                    _hotkeyService.Initialize(_hostWindow, _config.HotkeyModifiers, _config.HotkeyKey);
+                    _hotkeyService.Initialize(_hostWindow, oldMods, oldKey);
                 }
-                catch (Exception ex)
+                catch (Exception ex2)
                 {
-                    _logger.LogException(ex, "Hotkey re-registration failed");
-                    MessageBox.Show(
-                        $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}'.\n\nIt may already be in use by another application. Reverting to the previous hotkey.",
-                        "Hotkey Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    _config.HotkeyKey = oldKey;
-                    _config.HotkeyModifiers = oldMods;
-                    _ = _configService.SaveAsync(_config);
-                    try
-                    {
-                        _hotkeyService.Initialize(_hostWindow, oldMods, oldKey);
-                    }
-                    catch (Exception ex2)
-                    {
-                        _logger.LogException(ex2, "Hotkey revert also failed");
-                    }
+                    _logger.LogException(ex2, "Hotkey revert also failed");
                 }
             }
         }
@@ -124,6 +127,7 @@ public class TrayIconViewModel : IDisposable
             OnPropertyChanged(nameof(IsStandard));
             OnPropertyChanged(nameof(IsFormal));
             OnPropertyChanged(nameof(IsRaw));
+            OnPropertyChanged(nameof(IsDebug));
         }
     }
 

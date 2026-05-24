@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
 
 namespace Prompter.Views;
 
@@ -8,10 +9,21 @@ public partial class RecordingOverlay : Window
     public RecordingOverlay()
     {
         InitializeComponent();
-        // Position at bottom center of primary screen
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // Position at top-center of primary screen
         var screen = SystemParameters.WorkArea;
         Left = (screen.Width - Width) / 2;
-        Top = screen.Height - Height;
+        Top = screen.Top + 40;
+
+        // Start pulsing animation
+        if (Resources["PulseStoryboard"] is Storyboard sb)
+        {
+            sb.Begin();
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)

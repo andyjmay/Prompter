@@ -51,32 +51,50 @@ public class InputInjectorService
         }
     }
 
+    public void SimulatePaste()
+    {
+        _logger.Log("Simulating Ctrl+V via SendInput.");
+        int cbSize = Marshal.SizeOf<INPUT>();
+
+        var events = new INPUT[]
+        {
+            // Ctrl KeyDown
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x11, dwFlags = 0 } },
+            // V KeyDown
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x56, dwFlags = 0 } },
+            // V KeyUp
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x56, dwFlags = 0x0002 /* KEYEVENTF_KEYUP */ } },
+            // Ctrl KeyUp
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x11, dwFlags = 0x0002 /* KEYEVENTF_KEYUP */ } }
+        };
+
+        uint sent = SendInput((uint)events.Length, events, cbSize);
+        if (sent != events.Length)
+        {
+            _logger.Log($"SimulatePaste sent {sent}/{events.Length} events. Last Win32 error: {Marshal.GetLastWin32Error()}");
+        }
+    }
+
     private static INPUT MakeKeyDown(char c) => new()
     {
         type = 1,
-        U = new InputUnion { ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 /* KEYEVENTF_UNICODE */ } }
+        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 /* KEYEVENTF_UNICODE */ }
     };
 
     private static INPUT MakeKeyUp(char c) => new()
     {
         type = 1,
-        U = new InputUnion { ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 | 0x0002 /* KEYEVENTF_UNICODE | KEYEVENTF_KEYUP */ } }
+        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 | 0x0002 /* KEYEVENTF_UNICODE | KEYEVENTF_KEYUP */ }
     };
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
     private struct INPUT
     {
-        public uint type;
-        public InputUnion U;
-    }
-
-    [StructLayout(LayoutKind.Explicit)]
-    private struct InputUnion
-    {
-        [FieldOffset(0)] public KEYBDINPUT ki;
+        [FieldOffset(0)] public uint type;
+        [FieldOffset(8)] public KEYBDINPUT ki;
     }
 
     [StructLayout(LayoutKind.Sequential)]

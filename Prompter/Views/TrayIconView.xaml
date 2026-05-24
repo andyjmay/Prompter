@@ -18,9 +18,10 @@
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Mode">
-                        <MenuItem Header="Standard" IsCheckable="True" IsChecked="{Binding IsStandard}" Command="{Binding SetModeCommand}" CommandParameter="Standard"/>
-                        <MenuItem Header="Formal" IsCheckable="True" IsChecked="{Binding IsFormal}" Command="{Binding SetModeCommand}" CommandParameter="Formal"/>
-                        <MenuItem Header="Raw" IsCheckable="True" IsChecked="{Binding IsRaw}" Command="{Binding SetModeCommand}" CommandParameter="Raw"/>
+                        <MenuItem Header="Standard" IsCheckable="True" IsChecked="{Binding IsStandard, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Standard"/>
+                        <MenuItem Header="Formal" IsCheckable="True" IsChecked="{Binding IsFormal, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Formal"/>
+                        <MenuItem Header="Raw" IsCheckable="True" IsChecked="{Binding IsRaw, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Raw"/>
+                        <MenuItem Header="Debug" IsCheckable="True" IsChecked="{Binding IsDebug, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Debug"/>
                     </MenuItem>
                     <Separator/>
                     <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
