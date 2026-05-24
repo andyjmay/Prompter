@@ -11,6 +11,7 @@ public static class ThemeResolver
         public required Brush OverlayBackground { get; init; }
         public required Brush OverlayBorder { get; init; }
         public required Brush Accent { get; init; }
+        public required Brush ProcessingAccent { get; init; }
         public required Brush PrimaryText { get; init; }
         public required Brush SecondaryText { get; init; }
         public required Brush ToastBackground { get; init; }
@@ -24,7 +25,7 @@ public static class ThemeResolver
         var theme = style.Theme;
         double opacity = Math.Clamp(style.BackgroundOpacity, 0.0, 1.0);
 
-        Color overlayBg, overlayBorder, accent, primaryText, secondaryText, toastBg, toastBorder, buttonBg, buttonBorder;
+        Color overlayBg, overlayBorder, accent, processingAccent, primaryText, secondaryText, toastBg, toastBorder, buttonBg, buttonBorder;
 
         switch (theme)
         {
@@ -32,6 +33,7 @@ public static class ThemeResolver
                 overlayBg = FromHex("#FFFFFF");
                 overlayBorder = FromHex("#33000000");
                 accent = FromHex("#0066CC");
+                processingAccent = FromHex("#3399FF");
                 primaryText = FromHex("#000000");
                 secondaryText = FromHex("#333333");
                 toastBg = FromHex("#FFF0F0F0");
@@ -44,6 +46,7 @@ public static class ThemeResolver
                 overlayBg = FromHex("#000000");
                 overlayBorder = FromHex("#FFFFFFFF");
                 accent = FromHex("#FFFFFF00");
+                processingAccent = FromHex("#00FFFF");
                 primaryText = FromHex("#FFFFFFFF");
                 secondaryText = FromHex("#FFFFFFFF");
                 toastBg = FromHex("#FF000000");
@@ -56,6 +59,7 @@ public static class ThemeResolver
                 overlayBg = FromHex("#00000000");
                 overlayBorder = FromHex("#00000000");
                 accent = FromHex("#FFFFFFFF");
+                processingAccent = FromHex("#66CCFF");
                 primaryText = FromHex("#FFFFFFFF");
                 secondaryText = FromHex("#FFE0E0E0");
                 toastBg = FromHex("#FF1A1A1A");
@@ -68,6 +72,7 @@ public static class ThemeResolver
                 overlayBg = FromHex("#000000");
                 overlayBorder = FromHex("#33FFFFFF");
                 accent = FromHex("#FF3333");
+                processingAccent = FromHex("#3399FF");
                 primaryText = FromHex("#FFFFFFFF");
                 secondaryText = FromHex("#FFE0E0E0");
                 toastBg = FromHex("#FF2D2D2D");
@@ -89,6 +94,7 @@ public static class ThemeResolver
             OverlayBackground = ToFrozenBrush(overlayBg),
             OverlayBorder = ToFrozenBrush(overlayBorder),
             Accent = ToFrozenBrush(accent),
+            ProcessingAccent = ToFrozenBrush(processingAccent),
             PrimaryText = ToFrozenBrush(primaryText),
             SecondaryText = ToFrozenBrush(secondaryText),
             ToastBackground = ToFrozenBrush(toastBg),

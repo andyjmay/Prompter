@@ -69,6 +69,22 @@ public class RecordingUIManager : IRecordingUIManager
         // This method is a no-op in the UI manager; balloons are cross-cutting.
     }
 
+    public void TransitionOverlayToProcessing()
+    {
+        _dispatcher.Invoke(() =>
+        {
+            _overlay?.TransitionToProcessing();
+        });
+    }
+
+    public void UpdateProcessingStage(string stageLabel)
+    {
+        _dispatcher.Invoke(() =>
+        {
+            _overlay?.UpdateProcessingStage(stageLabel);
+        });
+    }
+
     public void Dispose()
     {
         _dispatcher.Invoke(() =>

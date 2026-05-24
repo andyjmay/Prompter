@@ -14,6 +14,20 @@ public class ModelManager : IModelManager, IAsyncDisposable
     private bool _chatLoaded;
     private string? _loadedChatAlias;
     private string? _loadedWhisperAlias;
+    private readonly Dictionary<string, DateTime> _lastFailureByAlias = new();
+    private static readonly TimeSpan RetryFailedAfter = TimeSpan.FromMinutes(30);
+
+    private bool IsRecentFailure(string alias)
+    {
+        if (_lastFailureByAlias.TryGetValue(alias, out var time))
+        {
+            if ((DateTime.Now - time) < RetryFailedAfter)
+                return true;
+            _lastFailureByAlias.Remove(alias);
+        }
+        return false;
+    }
+
     private System.Timers.Timer? _idleTimer;
     private DateTime _lastUsed;
     private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
@@ -76,55 +90,69 @@ public class ModelManager : IModelManager, IAsyncDisposable
             bool needsWhisperReload = _whisperModel == null;
             if (_whisperModel != null && _loadedWhisperAlias != targetWhisperAlias)
             {
-                _fileLogger.Log($"Whisper model changed from '{_loadedWhisperAlias}' to '{targetWhisperAlias}'. Unloading old model.");
-                await _whisperModel.UnloadAsync();
-                _whisperModel = null;
-                _whisperLoaded = false;
-                _loadedWhisperAlias = null;
-                needsWhisperReload = true;
+                bool isRecentFailure = IsRecentFailure(targetWhisperAlias);
+                if (_loadedWhisperAlias == "whisper-tiny" && isRecentFailure)
+                {
+                    _fileLogger.Log($"Keeping fallback whisper model '{_loadedWhisperAlias}' (configured '{targetWhisperAlias}' failed recently).");
+                }
+                else
+                {
+                    _fileLogger.Log($"Whisper model changed from '{_loadedWhisperAlias}' to '{targetWhisperAlias}'. Unloading old model.");
+                    await _whisperModel.UnloadAsync();
+                    _whisperModel = null;
+                    _whisperLoaded = false;
+                    _loadedWhisperAlias = null;
+                    needsWhisperReload = true;
+                }
             }
 
             if (needsWhisperReload)
             {
-                _whisperModel = await catalog.GetModelAsync(targetWhisperAlias);
+                var loadedAlias = targetWhisperAlias;
+                _whisperModel = await TryLoadModelAsync(catalog, targetWhisperAlias);
                 if (_whisperModel == null)
                 {
+                    if (!string.IsNullOrWhiteSpace(cfg.WhisperModelId))
+                        _lastFailureByAlias[cfg.WhisperModelId] = DateTime.Now;
                     _fileLogger.Log($"Configured Whisper model '{targetWhisperAlias}' unavailable. Falling back to default 'whisper-tiny'.");
-                    _whisperModel = await catalog.GetModelAsync("whisper-tiny")
-                        ?? throw new Exception("whisper-tiny not found in catalog");
-                    targetWhisperAlias = "whisper-tiny";
+                    loadedAlias = "whisper-tiny";
+                    _whisperModel = await TryLoadModelAsync(catalog, loadedAlias);
+                    if (_whisperModel == null)
+                        throw new InvalidOperationException($"Could not load Whisper model '{targetWhisperAlias}' or default 'whisper-tiny'.");
                 }
-                if (!await _whisperModel.IsCachedAsync())
-                {
-                    ModelDownloadProgress?.Invoke(targetWhisperAlias, 0f);
-                    await _whisperModel.DownloadAsync(pct => ModelDownloadProgress?.Invoke(targetWhisperAlias, pct));
-                }
-                await _whisperModel.LoadAsync();
+                _loadedWhisperAlias = loadedAlias;
                 _whisperLoaded = true;
-                _loadedWhisperAlias = targetWhisperAlias;
-                _fileLogger.Log($"{targetWhisperAlias} loaded.");
             }
 
             bool needsReload = _chatModel == null;
             if (_chatModel != null && _loadedChatAlias != targetChatAlias)
             {
-                _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{targetChatAlias}'. Unloading old model.");
-                await _chatModel.UnloadAsync();
-                _chatModel = null;
-                _chatLoaded = false;
-                _loadedChatAlias = null;
-                needsReload = true;
+                bool isRecentFailure = IsRecentFailure(targetChatAlias);
+                if (_loadedChatAlias == ModelCatalog.DefaultChatAlias && isRecentFailure)
+                {
+                    _fileLogger.Log($"Keeping fallback chat model '{_loadedChatAlias}' (configured '{targetChatAlias}' failed recently).");
+                }
+                else
+                {
+                    _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{targetChatAlias}'. Unloading old model.");
+                    await _chatModel.UnloadAsync();
+                    _chatModel = null;
+                    _chatLoaded = false;
+                    _loadedChatAlias = null;
+                    needsReload = true;
+                }
             }
 
             if (needsReload)
             {
                 var loadedAlias = targetChatAlias;
-                _chatModel = await TryLoadChatModelAsync(catalog, targetChatAlias);
+                _chatModel = await TryLoadModelAsync(catalog, targetChatAlias);
                 if (_chatModel == null)
                 {
+                    _lastFailureByAlias[targetChatAlias] = DateTime.Now;
                     _fileLogger.Log($"Configured chat model '{targetChatAlias}' unavailable. Falling back to default '{ModelCatalog.DefaultChatAlias}'.");
                     loadedAlias = ModelCatalog.DefaultChatAlias;
-                    _chatModel = await TryLoadChatModelAsync(catalog, loadedAlias);
+                    _chatModel = await TryLoadModelAsync(catalog, loadedAlias);
                     if (_chatModel == null)
                         throw new InvalidOperationException($"Could not load chat model '{targetChatAlias}' or default '{ModelCatalog.DefaultChatAlias}'.");
                 }
@@ -162,7 +190,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
             if (_chatModel == null)
             {
                 var catalog = await _accessor.Manager.GetCatalogAsync();
-                _chatModel = await TryLoadChatModelAsync(catalog, alias);
+                _chatModel = await TryLoadModelAsync(catalog, alias);
                 if (_chatModel == null)
                     throw new InvalidOperationException($"Could not load chat model '{alias}'.");
                 _loadedChatAlias = alias;
@@ -177,7 +205,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
         }
     }
 
-    private async Task<Microsoft.AI.Foundry.Local.IModel?> TryLoadChatModelAsync(Microsoft.AI.Foundry.Local.ICatalog catalog, string alias)
+    private async Task<Microsoft.AI.Foundry.Local.IModel?> TryLoadModelAsync(Microsoft.AI.Foundry.Local.ICatalog catalog, string alias)
     {
         try
         {
@@ -198,7 +226,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _fileLogger.LogException(ex, $"Failed to load chat model {alias}");
+            _fileLogger.LogException(ex, $"Failed to load model {alias}");
             return null;
         }
     }

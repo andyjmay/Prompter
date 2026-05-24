@@ -7,4 +7,6 @@ public interface IRecordingUIManager : IDisposable
     void UpdateAudioLevel(double normalizedLevel);
     void ShowPreviewToast(string text);
     void ShowBalloonIfEnabled(string title, string message);
+    void TransitionOverlayToProcessing();
+    void UpdateProcessingStage(string stageLabel);
 }

@@ -4,8 +4,9 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Topmost="True"
-        ShowInTaskbar="False"
+         Topmost="True"
+         ShowActivated="False"
+         ShowInTaskbar="False"
         ResizeMode="NoResize"
         Height="100"
         Width="320">
@@ -25,6 +26,7 @@
                 <TextBlock x:Name="StatusText" Text="Listening..." FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </StackPanel>
             <ProgressBar x:Name="AudioMeter" Height="4" Margin="0,8,0,0" Maximum="1" Minimum="0" Value="0" Background="#22FFFFFF" BorderThickness="0" Visibility="Collapsed"/>
+            <ProgressBar x:Name="ProcessingBar" Height="6" Margin="0,8,0,0" Background="#22FFFFFF" BorderThickness="0" Visibility="Collapsed" IsIndeterminate="True"/>
         </StackPanel>
     </Border>
 </Window>

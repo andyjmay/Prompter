@@ -22,6 +22,7 @@ public partial class RecordingOverlay : Window
         PulseDot.Fill = brushes.Accent;
         StatusText.Foreground = brushes.PrimaryText;
         AudioMeter.Foreground = brushes.Accent;
+        ProcessingBar.Foreground = brushes.ProcessingAccent;
 
         if (placement.ShowAudioLevelMeter)
         {
@@ -32,6 +33,25 @@ public partial class RecordingOverlay : Window
     public void UpdateAudioLevel(double level)
     {
         AudioMeter.Value = level;
+    }
+
+    public void TransitionToProcessing()
+    {
+        if (Resources["PulseStoryboard"] is Storyboard sb)
+        {
+            sb.Stop();
+        }
+
+        PulseDot.Visibility = Visibility.Collapsed;
+        AudioMeter.Visibility = Visibility.Collapsed;
+        ProcessingBar.Visibility = Visibility.Visible;
+        StatusText.Text = "Processing…";
+        StatusText.Foreground = ProcessingBar.Foreground;
+    }
+
+    public void UpdateProcessingStage(string label)
+    {
+        StatusText.Text = label;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

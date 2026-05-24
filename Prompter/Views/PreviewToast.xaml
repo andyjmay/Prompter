@@ -4,8 +4,9 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Topmost="True"
-        ShowInTaskbar="False"
+         Topmost="True"
+         ShowActivated="False"
+         ShowInTaskbar="False"
         Width="400"
         Height="160"
         Loaded="Window_Loaded">

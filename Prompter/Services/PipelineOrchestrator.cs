@@ -24,6 +24,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     private DateTime _recordingStartTime;
     private readonly object _stopLock = new();
     private bool _isStopping;
+    private int _recordingGeneration;
 
     public event Action<string>? OutputReady;
     public event Action<string, string>? ShowBalloon;
@@ -58,6 +59,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     {
         _logger.Log("Pipeline: StartRecording called.");
         _isStopping = false;
+        _recordingGeneration++;
         _audioFeedback.PlayStart();
         _recordingStartTime = DateTime.Now;
 
@@ -137,27 +139,29 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _audioFeedback.PlayStop();
         _maxDurationCts?.Cancel();
         _session?.StopRecording();
-
-        _uiManager.HideRecordingOverlay();
+        var session = _session;
+        var generation = _recordingGeneration;
 
         var elapsed = DateTime.Now - _recordingStartTime;
         if (elapsed < TimeSpan.FromSeconds(1))
         {
+            _uiManager.HideRecordingOverlay();
             _logger.Log($"Recording was very short ({elapsed.TotalMilliseconds:F0} ms).");
             ShowBalloon?.Invoke(
                 "Prompter — Recording too short",
                 "Hold the hotkey for at least a second while you speak.");
-            _session?.Dispose();
-            _session = null;
+            session?.Dispose();
             return;
         }
 
-        var wavPath = _session?.RecordedFilePath;
+        _uiManager.TransitionOverlayToProcessing();
+
+        var wavPath = session?.RecordedFilePath;
         if (string.IsNullOrEmpty(wavPath) || !File.Exists(wavPath))
         {
             _logger.Log("No recording file found.");
-            _session?.Dispose();
-            _session = null;
+            _uiManager.HideRecordingOverlay();
+            session?.Dispose();
             return;
         }
 
@@ -165,11 +169,15 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             try
             {
-                await ProcessAsync(wavPath, mode);
+                await ProcessAsync(wavPath, mode, generation);
             }
             catch (Exception ex)
             {
                 _logger.LogException(ex, "Processing pipeline");
+                if (_recordingGeneration == generation)
+                {
+                    _uiManager.HideRecordingOverlay();
+                }
                 ShowBalloon?.Invoke(
                     "Prompter — Processing failed",
                     "Could not transcribe the recording. Check the logs for details.");
@@ -177,18 +185,21 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             finally
             {
                 try { File.Delete(wavPath); } catch { }
-                _session?.Dispose();
-                _session = null;
+                session?.Dispose();
             }
         });
     }
 
-    private async Task ProcessAsync(string wavPath, FormatMode mode)
+    private async Task ProcessAsync(string wavPath, FormatMode mode, int generation)
     {
         var cfg = _configService.Load();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(cfg.ProcessingTimeoutSeconds));
 
         _logger.Log("Ensuring models are loaded...");
+        if (!_modelManager.WhisperReady || !_modelManager.ChatReady)
+        {
+            _uiManager.UpdateProcessingStage("Loading models…");
+        }
         await _modelManager.EnsureModelsLoadedAsync();
 
         var configuredAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
@@ -203,11 +214,13 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 $"Chat model '{configuredAlias}' was unavailable. Using '{loadedAlias}' instead.");
         }
 
+        _uiManager.UpdateProcessingStage("Transcribing…");
         var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
         rawText = rawText.Trim();
         if (string.IsNullOrWhiteSpace(rawText))
         {
             _logger.Log("Transcription empty.");
+            _uiManager.HideRecordingOverlay();
             return;
         }
 
@@ -221,6 +234,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
 
             if (_modelManager.ChatReady)
             {
+                _uiManager.UpdateProcessingStage("Formatting…");
                 try
                 {
                     formattedText = await _textFormatter.CleanupAsync(rawText, FormatMode.Standard, cts.Token);
@@ -252,6 +266,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         }
         else
         {
+            _uiManager.UpdateProcessingStage("Formatting…");
             try
             {
                 finalText = await _textFormatter.CleanupAsync(rawText, mode, cts.Token);
@@ -270,6 +285,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 "Prompter — Text formatted",
                 "The formatting model was unavailable. Outputting raw transcription.");
         }
+
+        _uiManager.UpdateProcessingStage("Typing…");
 
         var snapshot = _dispatcher.Invoke(() => _clipboard.SaveClipboard());
 
@@ -297,7 +314,11 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
         }
 
-        _uiManager.ShowPreviewToast(finalText);
+        if (_recordingGeneration == generation)
+        {
+            _uiManager.HideRecordingOverlay();
+            _uiManager.ShowPreviewToast(finalText);
+        }
         OutputReady?.Invoke(finalText);
     }
 
