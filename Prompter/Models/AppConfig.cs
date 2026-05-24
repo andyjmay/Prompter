@@ -53,7 +53,7 @@ public record PreviewToastSpecificConfig
 
 public record AppConfig
 {
-    public int Version { get; init; } = 2;
+    public int Version { get; init; } = 3;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public FormatMode DefaultMode { get; init; } = FormatMode.Standard;
@@ -65,6 +65,8 @@ public record AppConfig
     public string Language { get; init; } = "en";
     public string ChatModelId { get; init; } = "phi-3.5-mini";
     public string WhisperModelId { get; init; } = "whisper-tiny";
+    public bool UseCustomWhisper { get; init; } = false;
+    public string CustomWhisperModelPath { get; init; } = "";
     public int PasteThresholdCharacters { get; init; } = 150;
     public bool UseClipboardPaste { get; init; } = true;
     public int ProcessingTimeoutSeconds { get; init; } = 120;

@@ -78,11 +78,20 @@ public class ConfigService : IConfigService
 
     private static AppConfig Migrate(AppConfig config)
     {
-        var migrated = config.Version switch
+        var migrated = config;
+        if (migrated.Version < 2)
         {
-            < 2 => config with { Version = 2 },
-            _ => config
-        };
+            migrated = migrated with { Version = 2 };
+        }
+        if (migrated.Version < 3)
+        {
+            migrated = migrated with
+            {
+                Version = 3,
+                UseCustomWhisper = false,
+                CustomWhisperModelPath = ""
+            };
+        }
 
         return migrated with
         {

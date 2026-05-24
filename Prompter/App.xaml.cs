@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
@@ -89,6 +89,7 @@ public partial class App : Application
         trayView.Loaded += (_, _) =>
         {
             trayView.TrayIcon.DataContext = trayVm;
+            trayView.TrayIcon.ContextMenu.DataContext = trayVm;
             trayVm.Initialize();
             eventCoordinator.Initialize();
 
@@ -145,7 +146,8 @@ public partial class App : Application
             {
                 try
                 {
-                    await modelManager.DisposeAsync();
+                    await modelManager.UnloadChatModelAsync();
+                    await modelManager.UnloadWhisperModelAsync();
                 }
                 catch { }
             });
@@ -194,6 +196,8 @@ public partial class App : Application
 
         // Foundry layer
         services.AddSingleton<IFoundryLocalManagerAccessor, FoundryLocalManagerAccessor>();
+        services.AddSingleton<FoundryTranscriptionProvider>();
+        services.AddSingleton<WhisperNetTranscriptionProvider>();
         services.AddSingleton<IModelManager, ModelManager>();
         services.AddSingleton<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<ITextFormatter, TextFormatter>();

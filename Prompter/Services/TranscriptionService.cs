@@ -1,34 +1,36 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace Prompter.Services;
 
 public class TranscriptionService : ITranscriptionService
 {
-    private readonly IModelManager _modelManager;
+    private readonly IConfigService _configService;
+    private readonly FoundryTranscriptionProvider _foundryProvider;
+    private readonly WhisperNetTranscriptionProvider _whisperNetProvider;
     private readonly IFileLogger _fileLogger;
 
-    public TranscriptionService(IModelManager modelManager, IFileLogger fileLogger)
+    public TranscriptionService(
+        IConfigService configService,
+        FoundryTranscriptionProvider foundryProvider,
+        WhisperNetTranscriptionProvider whisperNetProvider,
+        IFileLogger fileLogger)
     {
-        _modelManager = modelManager;
+        _configService = configService;
+        _foundryProvider = foundryProvider;
+        _whisperNetProvider = whisperNetProvider;
         _fileLogger = fileLogger;
     }
 
     public async Task<string> TranscribeAsync(string wavPath, string language, CancellationToken ct)
     {
-        if (!_modelManager.WhisperReady)
-            throw new InvalidOperationException("Whisper not loaded");
+        var cfg = _configService.Load();
+        ITranscriptionProvider provider = cfg.UseCustomWhisper
+            ? _whisperNetProvider
+            : _foundryProvider;
 
-        var audioClient = await _modelManager.GetAudioClientAsync();
-        audioClient.Settings.Language = language;
-
-        var sb = new System.Text.StringBuilder();
-        var stream = audioClient.TranscribeAudioStreamingAsync(wavPath, ct);
-        await foreach (var chunk in stream)
-        {
-            ct.ThrowIfCancellationRequested();
-            var text = chunk.Text.Replace("[BLANK_AUDIO]", string.Empty, StringComparison.OrdinalIgnoreCase);
-            sb.Append(text);
-        }
-
-        _fileLogger.Log($"Transcription: {sb}");
-        return sb.ToString();
+        _fileLogger.Log($"Routing transcription to {(cfg.UseCustomWhisper ? "Whisper.net" : "Foundry.Local")}");
+        return await provider.TranscribeAsync(wavPath, language, ct);
     }
 }

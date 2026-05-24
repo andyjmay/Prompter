@@ -518,6 +518,7 @@
                             <TextBlock Text="Speech Model (Whisper)" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
                             <ComboBox x:Name="WhisperModelComboBox" SelectionChanged="WhisperModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
                             <TextBlock x:Name="WhisperModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
+                            <Button x:Name="ManageCustomModelsButton" Content="Manage Custom Models..." Margin="0,8,0,0" Click="ManageCustomModelsButton_Click" HorizontalAlignment="Stretch"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">

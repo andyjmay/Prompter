@@ -1,3 +1,4 @@
+using System.IO;
 using System.Timers;
 using Microsoft.AI.Foundry.Local;
 using Prompter.Models;
@@ -9,6 +10,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
     private readonly IFoundryLocalManagerAccessor _accessor;
     private readonly IConfigService _configService;
     private readonly IFileLogger _fileLogger;
+    private readonly WhisperNetTranscriptionProvider _whisperNetProvider;
     private Microsoft.AI.Foundry.Local.IModel? _whisperModel;
     private Microsoft.AI.Foundry.Local.IModel? _chatModel;
     private bool _whisperLoaded;
@@ -37,18 +39,27 @@ public class ModelManager : IModelManager, IAsyncDisposable
     private bool _disposed;
     private ElapsedEventHandler? _idleTimerHandler;
 
-    public bool WhisperReady => _whisperModel != null && _whisperLoaded;
+    public bool WhisperReady => _configService.Load().UseCustomWhisper
+        ? _whisperNetProvider.IsLoaded
+        : (_whisperModel != null && _whisperLoaded);
     public bool ChatReady => _chatModel != null && _chatLoaded;
     public string? LoadedChatModelAlias => _loadedChatAlias;
-    public string? LoadedWhisperModelAlias => _loadedWhisperAlias;
+    public string? LoadedWhisperModelAlias => _configService.Load().UseCustomWhisper
+        ? Path.GetFileName(_configService.Load().CustomWhisperModelPath)
+        : _loadedWhisperAlias;
 
     public event Action<string, float>? ModelDownloadProgress;
 
-    public ModelManager(IFoundryLocalManagerAccessor accessor, IConfigService configService, IFileLogger fileLogger)
+    public ModelManager(
+        IFoundryLocalManagerAccessor accessor,
+        IConfigService configService,
+        IFileLogger fileLogger,
+        WhisperNetTranscriptionProvider whisperNetProvider)
     {
         _accessor = accessor;
         _configService = configService;
         _fileLogger = fileLogger;
+        _whisperNetProvider = whisperNetProvider;
     }
 
     public async Task InitializeAsync(int idleTtlMinutes)
@@ -88,44 +99,60 @@ public class ModelManager : IModelManager, IAsyncDisposable
                 ? "whisper-tiny"
                 : cfg.WhisperModelId;
 
-            bool needsWhisperReload = _whisperModel == null;
-            if (_whisperModel != null && _loadedWhisperAlias != targetWhisperAlias)
+            if (cfg.UseCustomWhisper)
             {
-                bool isRecentFailure = IsRecentFailure(targetWhisperAlias);
-                if (_loadedWhisperAlias == "whisper-tiny" && isRecentFailure)
+                if (_whisperModel != null)
                 {
-                    _fileLogger.Log($"Keeping fallback whisper model '{_loadedWhisperAlias}' (configured '{targetWhisperAlias}' failed recently).");
-                }
-                else
-                {
-                    _fileLogger.Log($"Whisper model changed from '{_loadedWhisperAlias}' to '{targetWhisperAlias}'. Unloading old model.");
                     await _whisperModel.UnloadAsync();
                     _whisperModel = null;
                     _whisperLoaded = false;
                     _loadedWhisperAlias = null;
-                    needsWhisperReload = true;
                 }
+                await _whisperNetProvider.LoadAsync();
             }
-
-            if (needsWhisperReload)
+            else
             {
-                var loadedAlias = targetWhisperAlias;
-                _whisperModel = await TryLoadModelAsync(catalog, targetWhisperAlias);
-                if (_whisperModel == null)
+                await _whisperNetProvider.UnloadAsync();
+
+                bool needsWhisperReload = _whisperModel == null;
+                if (_whisperModel != null && _loadedWhisperAlias != targetWhisperAlias)
                 {
-                    if (!string.IsNullOrWhiteSpace(cfg.WhisperModelId))
-                        _lastFailureByAlias[cfg.WhisperModelId] = DateTime.Now;
-                    _fileLogger.Log($"Configured Whisper model '{targetWhisperAlias}' unavailable. Falling back to default 'whisper-tiny'.");
-                    loadedAlias = "whisper-tiny";
-                    _whisperModel = await TryLoadModelAsync(catalog, loadedAlias);
-                    if (_whisperModel == null)
-                        throw new InvalidOperationException($"Could not load Whisper model '{targetWhisperAlias}' or default 'whisper-tiny'.");
+                    bool isRecentFailure = IsRecentFailure(targetWhisperAlias);
+                    if (_loadedWhisperAlias == "whisper-tiny" && isRecentFailure)
+                    {
+                        _fileLogger.Log($"Keeping fallback whisper model '{_loadedWhisperAlias}' (configured '{targetWhisperAlias}' failed recently).");
+                    }
+                    else
+                    {
+                        _fileLogger.Log($"Whisper model changed from '{_loadedWhisperAlias}' to '{targetWhisperAlias}'. Unloading old model.");
+                        await _whisperModel.UnloadAsync();
+                        _whisperModel = null;
+                        _whisperLoaded = false;
+                        _loadedWhisperAlias = null;
+                        needsWhisperReload = true;
+                    }
                 }
-                _loadedWhisperAlias = loadedAlias;
-                _whisperLoaded = true;
+
+                if (needsWhisperReload)
+                {
+                    var loadedAlias = targetWhisperAlias;
+                    _whisperModel = await TryLoadModelAsync(catalog, targetWhisperAlias);
+                    if (_whisperModel == null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(cfg.WhisperModelId))
+                            _lastFailureByAlias[cfg.WhisperModelId] = DateTime.Now;
+                        _fileLogger.Log($"Configured Whisper model '{targetWhisperAlias}' unavailable. Falling back to default 'whisper-tiny'.");
+                        loadedAlias = "whisper-tiny";
+                        _whisperModel = await TryLoadModelAsync(catalog, loadedAlias);
+                        if (_whisperModel == null)
+                            throw new InvalidOperationException($"Could not load Whisper model '{targetWhisperAlias}' or default 'whisper-tiny'.");
+                    }
+                    _loadedWhisperAlias = loadedAlias;
+                    _whisperLoaded = true;
+                }
             }
 
-            bool needsReload = _chatModel == null;
+            _lastUsed = DateTime.Now;bool needsReload = _chatModel == null;
             if (_chatModel != null && _loadedChatAlias != targetChatAlias)
             {
                 bool isRecentFailure = IsRecentFailure(targetChatAlias);
@@ -265,6 +292,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
                 _loadedWhisperAlias = null;
                 _fileLogger.Log("Whisper model unloaded.");
             }
+            await _whisperNetProvider.UnloadAsync();
         }
         finally
         {
@@ -292,6 +320,11 @@ public class ModelManager : IModelManager, IAsyncDisposable
                 _whisperLoaded = false;
                 _loadedWhisperAlias = null;
                 _fileLogger.Log($"Model {alias} (whisper) unloaded.");
+            }
+            else if (_configService.Load().UseCustomWhisper && Path.GetFileName(_configService.Load().CustomWhisperModelPath) == alias)
+            {
+                await _whisperNetProvider.UnloadAsync();
+                _fileLogger.Log($"Model {alias} (custom whisper) unloaded.");
             }
             else
             {
@@ -337,20 +370,21 @@ public class ModelManager : IModelManager, IAsyncDisposable
 
     private async Task CheckIdleAsync(int ttlMinutes, CancellationToken ct)
     {
-        if (_whisperModel == null && _chatModel == null) return;
+        if (_whisperModel == null && _chatModel == null && !_whisperNetProvider.IsLoaded) return;
         if ((DateTime.Now - _lastUsed).TotalMinutes < ttlMinutes) return;
         if (ct.IsCancellationRequested) return;
 
         await _loadSemaphore.WaitAsync(ct);
         try
         {
-            if (_whisperModel == null && _chatModel == null) return;
+            if (_whisperModel == null && _chatModel == null && !_whisperNetProvider.IsLoaded) return;
             if ((DateTime.Now - _lastUsed).TotalMinutes < ttlMinutes) return;
             if (ct.IsCancellationRequested) return;
 
             _fileLogger.Log("Models idle — unloading.");
             if (_chatModel != null) { await _chatModel.UnloadAsync(); _chatModel = null; _chatLoaded = false; _loadedChatAlias = null; }
             if (_whisperModel != null) { await _whisperModel.UnloadAsync(); _whisperModel = null; _whisperLoaded = false; _loadedWhisperAlias = null; }
+            await _whisperNetProvider.UnloadAsync();
         }
         catch (OperationCanceledException)
         {
@@ -379,6 +413,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
         {
             if (_chatModel != null) { await _chatModel.UnloadAsync(); _chatLoaded = false; _loadedChatAlias = null; }
             if (_whisperModel != null) { await _whisperModel.UnloadAsync(); _whisperLoaded = false; _loadedWhisperAlias = null; }
+            await _whisperNetProvider.UnloadAsync();
         }
         catch (Exception ex)
         {

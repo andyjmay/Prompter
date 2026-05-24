@@ -1,3 +1,4 @@
+using System.IO;
 using System.Collections;
 using System.ComponentModel;
 using System.Linq;
@@ -232,10 +233,40 @@ public partial class SettingsWindow : Window
                 _whisperDisplayNameToAlias[displayName] = alias;
                 WhisperModelComboBox.Items.Add(displayName);
             }
+
+            var modelsDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Prompter", "models", "ggml");
+
+            if (Directory.Exists(modelsDir))
+            {
+                var files = Directory.GetFiles(modelsDir, "*.bin");
+                foreach (var file in files)
+                {
+                    var name = Path.GetFileName(file);
+                    var displayName = $"Custom: {name}";
+                    _whisperDisplayNameToAlias[displayName] = file;
+                    WhisperModelComboBox.Items.Add(displayName);
+                }
+            }
+
             WhisperModelComboBox.IsEnabled = true;
 
-            var configuredAlias = _config.WhisperModelId;
-            var configuredDisplay = models.FirstOrDefault(m => m.Alias == configuredAlias).DisplayName;
+            string? configuredDisplay = null;
+            if (_config.UseCustomWhisper && !string.IsNullOrWhiteSpace(_config.CustomWhisperModelPath))
+            {
+                var customName = Path.GetFileName(_config.CustomWhisperModelPath);
+                var displayName = $"Custom: {customName}";
+                if (WhisperModelComboBox.Items.Contains(displayName))
+                {
+                    configuredDisplay = displayName;
+                }
+            }
+            else
+            {
+                configuredDisplay = models.FirstOrDefault(m => m.Alias == _config.WhisperModelId).DisplayName;
+            }
+
             if (configuredDisplay != null)
             {
                 WhisperModelComboBox.SelectedItem = configuredDisplay;
@@ -386,8 +417,27 @@ public partial class SettingsWindow : Window
 
         var selected = WhisperModelComboBox.SelectedItem as string;
         if (selected == null) return;
+
+        if (selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase))
+        {
+            WhisperModelStatusText.Text = "Custom model selected";
+            return;
+        }
+
         var alias = _whisperDisplayNameToAlias.TryGetValue(selected, out var a) ? a : selected;
         _ = DownloadModelOnDemandAsync(alias, WhisperModelStatusText);
+    }
+
+    private void ManageCustomModelsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var managerWin = new CustomModelManagerWindow(_configService, _logger)
+        {
+            Owner = this
+        };
+        managerWin.ShowDialog();
+        _ = PopulateWhisperModelComboBoxAsync();
+        _ = PopulateChatModelComboBoxAsync();
+        _ = RefreshModelsDashboardAsync();
     }
 
     private async Task DownloadModelOnDemandAsync(string? alias, TextBlock statusTextBlock)
@@ -605,12 +655,40 @@ public partial class SettingsWindow : Window
         }
 
         var selectedWhisperDisplay = WhisperModelComboBox.SelectedItem as string;
-        var proposedWhisperAlias = selectedWhisperDisplay != null
-            ? (_whisperDisplayNameToAlias.TryGetValue(selectedWhisperDisplay, out var wa) ? wa! : selectedWhisperDisplay)
-            : "whisper-tiny";
+        string proposedWhisperAlias = "whisper-tiny";
+        bool useCustomWhisper = false;
+        string customWhisperPath = "";
+
+        if (selectedWhisperDisplay != null)
+        {
+            if (_whisperDisplayNameToAlias.TryGetValue(selectedWhisperDisplay, out var pathOrAlias))
+            {
+                if (pathOrAlias.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+                {
+                    useCustomWhisper = true;
+                    customWhisperPath = pathOrAlias;
+                }
+                else
+                {
+                    proposedWhisperAlias = pathOrAlias;
+                }
+            }
+            else
+            {
+                proposedWhisperAlias = selectedWhisperDisplay;
+            }
+        }
 
         var oldWhisperModel = _config.WhisperModelId;
-        _config = _config with { WhisperModelId = proposedWhisperAlias };
+        var oldUseCustomWhisper = _config.UseCustomWhisper;
+        var oldCustomPath = _config.CustomWhisperModelPath;
+
+        _config = _config with
+        {
+            WhisperModelId = proposedWhisperAlias,
+            UseCustomWhisper = useCustomWhisper,
+            CustomWhisperModelPath = customWhisperPath
+        };
 
         var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
         var proposedAlias = selectedDisplay == ModelCatalog.OtherOption
@@ -680,7 +758,7 @@ public partial class SettingsWindow : Window
             _logger.LogException(ex, "UnloadChatModelAsync on settings save");
         }
 
-        if (proposedWhisperAlias != oldWhisperModel)
+        if (proposedWhisperAlias != oldWhisperModel || useCustomWhisper != oldUseCustomWhisper || customWhisperPath != oldCustomPath)
         {
             try
             {

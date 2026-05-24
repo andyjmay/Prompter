@@ -17,7 +17,7 @@
                         LeftClickCommand="{Binding OpenSettingsCommand}"
                          MenuActivation="RightClick">
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                <ContextMenu>
                     <MenuItem Header="Mode">
                         <MenuItem Header="Standard" IsCheckable="True" IsChecked="{Binding IsStandard, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Standard"/>
                         <MenuItem Header="Formal" IsCheckable="True" IsChecked="{Binding IsFormal, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Formal"/>

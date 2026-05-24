@@ -19,6 +19,12 @@ public static class ModelCatalog
         ["phi-3.5-mini-instruct"] = new("~2.2 GB", "Text Correction", 2200f),
         ["qwen2.5-0.5b-instruct"] = new("~0.5 GB", "Text Correction", 500f),
         ["qwen2.5-1.5b-instruct"] = new("~0.9 GB", "Text Correction", 900f),
+        ["gemma-2-2b-it-onnx-int4"] = new("~1.6 GB", "Text Correction", 1600f),
+        ["gemma-2-2b-it"] = new("~1.6 GB", "Text Correction", 1600f),
+        ["gemma-3-onnx"] = new("~2.5 GB", "Text Correction", 2500f),
+        ["gemma-3-4b-it"] = new("~2.5 GB", "Text Correction", 2500f),
+        ["gemma-3-1b-it"] = new("~0.6 GB", "Text Correction", 600f),
+        ["gemma-3-270m-it"] = new("~200 MB", "Text Correction", 200f),
     };
 
     public static string GetSizeDescription(string alias)
