@@ -2,79 +2,74 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Prompter.Models;
-using Prompter.Views;
 
 namespace Prompter.Services;
 
-public class PipelineService : IDisposable
+public class PipelineOrchestrator : IPipelineOrchestrator
 {
-    private readonly AudioRecorderService _recorder;
-    private readonly FoundryOrchestrator _foundry;
-    private readonly ClipboardService _clipboard;
-    private readonly InputInjectorService _injector;
-    private readonly ConfigService _configService;
-    private readonly AudioFeedbackService _audioFeedback;
-    private readonly FileLogger _logger;
+    private readonly IAudioRecorderService _recorder;
+    private readonly IModelManager _modelManager;
+    private readonly ITranscriptionService _transcriptionService;
+    private readonly ITextFormatter _textFormatter;
+    private readonly IClipboardService _clipboard;
+    private readonly IInputInjectorService _injector;
+    private readonly IConfigService _configService;
+    private readonly IAudioFeedbackService _audioFeedback;
+    private readonly IFileLogger _logger;
     private readonly Dispatcher _dispatcher;
+    private readonly IRecordingUIManager _uiManager;
 
-    private RecordingOverlay? _overlay;
-    private PreviewToast? _preview;
+    private IRecordingSession? _session;
     private CancellationTokenSource? _maxDurationCts;
+    private DateTime _recordingStartTime;
+    private readonly object _stopLock = new();
+    private bool _isStopping;
 
     public event Action<string>? OutputReady;
     public event Action<string, string>? ShowBalloon;
 
-    private void ShowBalloonIfEnabled(string title, string message)
-    {
-        if (_configService.Load().NotificationsEnabled)
-            ShowBalloon?.Invoke(title, message);
-    }
-
-    public PipelineService(
-        AudioRecorderService recorder,
-        FoundryOrchestrator foundry,
-        ClipboardService clipboard,
-        InputInjectorService injector,
-        ConfigService configService,
-        AudioFeedbackService audioFeedback,
-        FileLogger logger,
-        Dispatcher dispatcher)
+    public PipelineOrchestrator(
+        IAudioRecorderService recorder,
+        IModelManager modelManager,
+        ITranscriptionService transcriptionService,
+        ITextFormatter textFormatter,
+        IClipboardService clipboard,
+        IInputInjectorService injector,
+        IConfigService configService,
+        IAudioFeedbackService audioFeedback,
+        IFileLogger logger,
+        Dispatcher dispatcher,
+        IRecordingUIManager uiManager)
     {
         _recorder = recorder;
-        _foundry = foundry;
+        _modelManager = modelManager;
+        _transcriptionService = transcriptionService;
+        _textFormatter = textFormatter;
         _clipboard = clipboard;
         _injector = injector;
         _configService = configService;
         _audioFeedback = audioFeedback;
         _logger = logger;
         _dispatcher = dispatcher;
-
-        _recorder.RecordingError += ex =>
-        {
-            _logger.LogException(ex, "RecordingError event");
-            _dispatcher.Invoke(() =>
-            {
-                _overlay?.Close();
-                _overlay = null;
-                MessageBox.Show(
-                    "Recording was interrupted. The microphone may have been disconnected or taken by another app.",
-                    "Prompter — Recording Stopped",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            });
-        };
+        _uiManager = uiManager;
     }
-
-    private DateTime _recordingStartTime;
 
     public void StartRecording()
     {
         _logger.Log("Pipeline: StartRecording called.");
+        _isStopping = false;
         _audioFeedback.PlayStart();
         _recordingStartTime = DateTime.Now;
 
-        if (!_recorder.StartRecording())
+        try
         {
+            _session = _recorder.StartRecording();
+            _session.RecordingError += OnRecordingError;
+            _session.Begin();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "StartRecording failed");
             _dispatcher.Invoke(() =>
             {
                 MessageBox.Show(
@@ -86,16 +81,9 @@ public class PipelineService : IDisposable
             return;
         }
 
-        // Show overlay on UI thread
-        _dispatcher.Invoke(() =>
-        {
-            _overlay = new RecordingOverlay();
-            _overlay.Show();
-        });
+        _uiManager.ShowRecordingOverlay();
+        ShowBalloon?.Invoke("Prompter — Recording", "Listening... Release the hotkey to stop.");
 
-        ShowBalloonIfEnabled("Prompter — Recording", "Listening... Release the hotkey to stop.");
-
-        // 5-minute safety cap
         _maxDurationCts?.Dispose();
         _maxDurationCts = new CancellationTokenSource();
         Task.Run(async () =>
@@ -110,43 +98,60 @@ public class PipelineService : IDisposable
             StopRecordingAndProcess(cfg.DefaultMode);
         });
 
-        // Kick off model loading in background
         _ = Task.Run(async () =>
         {
-            try { await _foundry.EnsureModelsLoadedAsync(); }
+            try { await _modelManager.EnsureModelsLoadedAsync(); }
             catch (Exception ex) { _logger.LogException(ex, "Background model load"); }
+        });
+    }
+
+    private void OnRecordingError(Exception ex)
+    {
+        _logger.LogException(ex, "RecordingError event");
+        _dispatcher.Invoke(() =>
+        {
+            _uiManager.HideRecordingOverlay();
+            MessageBox.Show(
+                "Recording was interrupted. The microphone may have been disconnected or taken by another app.",
+                "Prompter — Recording Stopped",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         });
     }
 
     public void StopRecordingAndProcess(FormatMode mode)
     {
+        lock (_stopLock)
+        {
+            if (_isStopping) return;
+            _isStopping = true;
+        }
+
         _logger.Log("Pipeline: StopRecordingAndProcess called.");
         _audioFeedback.PlayStop();
         _maxDurationCts?.Cancel();
-        _recorder.StopRecording();
+        _session?.StopRecording();
 
-        _dispatcher.Invoke(() => _overlay?.Close());
-        _overlay = null;
+        _uiManager.HideRecordingOverlay();
 
         var elapsed = DateTime.Now - _recordingStartTime;
         if (elapsed < TimeSpan.FromSeconds(1))
         {
             _logger.Log($"Recording was very short ({elapsed.TotalMilliseconds:F0} ms).");
-            ShowBalloonIfEnabled(
+            ShowBalloon?.Invoke(
                 "Prompter — Recording too short",
                 "Hold the hotkey for at least a second while you speak.");
-            var shortPath = _recorder.RecordedFilePath;
-            if (!string.IsNullOrEmpty(shortPath) && File.Exists(shortPath))
-            {
-                try { File.Delete(shortPath); } catch { }
-            }
+            _session?.Dispose();
+            _session = null;
             return;
         }
 
-        var wavPath = _recorder.RecordedFilePath;
+        var wavPath = _session?.RecordedFilePath;
         if (string.IsNullOrEmpty(wavPath) || !File.Exists(wavPath))
         {
             _logger.Log("No recording file found.");
+            _session?.Dispose();
+            _session = null;
             return;
         }
 
@@ -159,13 +164,15 @@ public class PipelineService : IDisposable
             catch (Exception ex)
             {
                 _logger.LogException(ex, "Processing pipeline");
-                ShowBalloonIfEnabled(
+                ShowBalloon?.Invoke(
                     "Prompter — Processing failed",
                     "Could not transcribe the recording. Check the logs for details.");
             }
             finally
             {
                 try { File.Delete(wavPath); } catch { }
+                _session?.Dispose();
+                _session = null;
             }
         });
     }
@@ -173,27 +180,24 @@ public class PipelineService : IDisposable
     private async Task ProcessAsync(string wavPath, FormatMode mode)
     {
         var cfg = _configService.Load();
-        var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(cfg.ProcessingTimeoutSeconds));
 
-        // Ensure models are loaded and up-to-date (handles model drift)
         _logger.Log("Ensuring models are loaded...");
-        await _foundry.EnsureModelsLoadedAsync();
+        await _modelManager.EnsureModelsLoadedAsync();
 
-        // Notify if chat model fallback occurred
         var configuredAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
             ? ModelCatalog.DefaultChatAlias
             : cfg.ChatModelId;
-        if (_foundry.ChatReady && _foundry.LoadedChatModelAlias != configuredAlias)
+        if (_modelManager.ChatReady && _modelManager.LoadedChatModelAlias != configuredAlias)
         {
-            var loadedAlias = _foundry.LoadedChatModelAlias!;
-            var loadedDisplay = await _foundry.GetModelDisplayNameAsync(loadedAlias) ?? loadedAlias;
-            _logger.Log($"Chat model fallback active. Configured: {configuredAlias}, Loaded: {_foundry.LoadedChatModelAlias}.");
-            ShowBalloonIfEnabled(
+            var loadedAlias = _modelManager.LoadedChatModelAlias!;
+            _logger.Log($"Chat model fallback active. Configured: {configuredAlias}, Loaded: {loadedAlias}.");
+            ShowBalloon?.Invoke(
                 "Prompter — Model fallback",
-                $"Chat model '{configuredAlias}' was unavailable. Using '{loadedDisplay}' instead.");
+                $"Chat model '{configuredAlias}' was unavailable. Using '{loadedAlias}' instead.");
         }
 
-        var rawText = await _foundry.TranscribeAsync(wavPath, cfg.Language, cts.Token);
+        var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
         if (string.IsNullOrWhiteSpace(rawText))
         {
             _logger.Log("Transcription empty.");
@@ -205,16 +209,15 @@ public class PipelineService : IDisposable
 
         if (mode == FormatMode.Debug)
         {
-            // Debug mode: show both raw and formatted output
             string formattedText;
             string statusLine;
 
-            if (_foundry.ChatReady)
+            if (_modelManager.ChatReady)
             {
                 try
                 {
-                    formattedText = await _foundry.CleanupAsync(rawText, FormatMode.Standard, cts.Token);
-                    statusLine = "Chat model: " + (_foundry.LoadedChatModelAlias ?? "unknown");
+                    formattedText = await _textFormatter.CleanupAsync(rawText, FormatMode.Standard, cts.Token);
+                    statusLine = "Chat model: " + (_modelManager.LoadedChatModelAlias ?? "unknown");
                 }
                 catch (Exception ex)
                 {
@@ -231,7 +234,7 @@ public class PipelineService : IDisposable
 
             finalText = $"[RAW]{Environment.NewLine}{rawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
         }
-        else if (mode == FormatMode.Raw || !_foundry.ChatReady)
+        else if (mode == FormatMode.Raw || !_modelManager.ChatReady)
         {
             if (mode != FormatMode.Raw)
             {
@@ -244,7 +247,7 @@ public class PipelineService : IDisposable
         {
             try
             {
-                finalText = await _foundry.CleanupAsync(rawText, mode, cts.Token);
+                finalText = await _textFormatter.CleanupAsync(rawText, mode, cts.Token);
             }
             catch (Exception ex)
             {
@@ -256,22 +259,19 @@ public class PipelineService : IDisposable
 
         if (usedFallback)
         {
-            ShowBalloonIfEnabled(
+            ShowBalloon?.Invoke(
                 "Prompter — Text formatted",
                 "The formatting model was unavailable. Outputting raw transcription.");
         }
 
-        // Clipboard guard
         var snapshot = _dispatcher.Invoke(() => _clipboard.SaveClipboard());
 
         try
         {
-            // Inject
             if (cfg.UseClipboardPaste && finalText.Length >= cfg.PasteThresholdCharacters)
             {
                 _dispatcher.Invoke(() => _clipboard.CopyText(finalText));
                 _injector.SimulatePaste();
-                // Wait for the target application to process the paste message before restoring original clipboard contents
                 await Task.Delay(150);
                 _logger.Log("Text pasted via clipboard.");
             }
@@ -287,17 +287,10 @@ public class PipelineService : IDisposable
         }
         finally
         {
-            // Always restore clipboard
             _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
         }
 
-        // Show preview toast
-        _dispatcher.Invoke(() =>
-        {
-            _preview = new PreviewToast(finalText, _clipboard);
-            _preview.Show();
-        });
-
+        _uiManager.ShowPreviewToast(finalText);
         OutputReady?.Invoke(finalText);
     }
 
@@ -305,5 +298,7 @@ public class PipelineService : IDisposable
     {
         _maxDurationCts?.Cancel();
         _maxDurationCts?.Dispose();
+        _session?.Dispose();
+        _uiManager.Dispose();
     }
 }

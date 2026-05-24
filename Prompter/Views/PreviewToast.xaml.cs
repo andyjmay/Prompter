@@ -6,21 +6,22 @@ using Prompter.Services;
 
 namespace Prompter.Views;
 
-public partial class PreviewToast : Window
+public partial class PreviewToast : Window, IDisposable
 {
-    private readonly ClipboardService _clipboard;
+    private readonly IClipboardService _clipboard;
     private readonly DispatcherTimer _timer;
     private bool _mouseOver;
+    private bool _disposed;
 
-    public PreviewToast(string text, ClipboardService clipboard)
+    public PreviewToast(string text, IClipboardService clipboard)
     {
         InitializeComponent();
         _clipboard = clipboard;
         OutputText.Text = text;
 
-        var screen = SystemParameters.WorkArea;
-        Left = screen.Width - Width - 16;
-        Top = screen.Height - Height - 16;
+        var screen = ScreenHelper.GetActiveMonitorWorkArea();
+        Left = screen.Right - Width - 16;
+        Top = screen.Bottom - Height - 16;
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _timer.Tick += (_, _) =>
@@ -35,15 +36,24 @@ public partial class PreviewToast : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        // Prevent the toast from stealing focus
         var helper = new WindowInteropHelper(this);
         NativeMethods.SetWindowPos(helper.Handle, IntPtr.Zero, 0, 0, 0, 0,
-            0x0010 /* SWP_NOACTIVATE */ | 0x0001 /* SWP_NOSIZE */ | 0x0002 /* SWP_NOMOVE */ | 0x0004 /* SWP_NOZORDER */);
+            0x0010 | 0x0001 | 0x0002 | 0x0004);
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         _timer.Start();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        if (!_disposed)
+        {
+            _disposed = true;
+            _timer.Stop();
+        }
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e)
@@ -55,5 +65,15 @@ public partial class PreviewToast : Window
     private void Dismiss_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            _timer.Stop();
+            Dispatcher.Invoke(() => Close());
+        }
     }
 }

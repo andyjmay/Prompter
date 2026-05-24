@@ -8,20 +8,21 @@ public enum FormatMode
     Debug
 }
 
-public class AppConfig
+public record AppConfig
 {
-    public string HotkeyModifiers { get; set; } = "Win+Ctrl";
-    public string HotkeyKey { get; set; } = "";
-    public FormatMode DefaultMode { get; set; } = FormatMode.Standard;
-    public int ModelIdleTtlMinutes { get; set; } = 5;
-    public bool AutoStartWithWindows { get; set; } = false;
-    public bool AudioFeedbackEnabled { get; set; } = false;
-    public bool NotificationsEnabled { get; set; } = true;
-    public string Language { get; set; } = "en";
-    public string ChatModelId { get; set; } = "phi-3.5-mini";
-    public string WhisperModelId { get; set; } = "whisper-tiny";
-    public int PasteThresholdCharacters { get; set; } = 150;
-    public bool UseClipboardPaste { get; set; } = true;
-
-    public string? CustomSystemPrompt { get; set; }
+    public int Version { get; init; } = 1;
+    public string HotkeyModifiers { get; init; } = "Win+Ctrl";
+    public string HotkeyKey { get; init; } = "";
+    public FormatMode DefaultMode { get; init; } = FormatMode.Standard;
+    public int ModelIdleTtlMinutes { get; init; } = 5;
+    public bool AutoStartWithWindows { get; init; } = false;
+    public bool AudioFeedbackEnabled { get; init; } = false;
+    public bool NotificationsEnabled { get; init; } = true;
+    public string Language { get; init; } = "en";
+    public string ChatModelId { get; init; } = "phi-3.5-mini";
+    public string WhisperModelId { get; init; } = "whisper-tiny";
+    public int PasteThresholdCharacters { get; init; } = 150;
+    public bool UseClipboardPaste { get; init; } = true;
+    public int ProcessingTimeoutSeconds { get; init; } = 120;
+    public string? CustomSystemPrompt { get; init; }
 }

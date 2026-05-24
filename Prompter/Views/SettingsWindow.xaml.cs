@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -14,11 +13,12 @@ namespace Prompter.Views;
 
 public partial class SettingsWindow : Window
 {
-    private readonly ConfigService _configService;
-    private readonly ClipboardService _clipboardService;
-    private readonly StartupService _startupService;
-    private readonly FileLogger _logger;
-    private readonly FoundryOrchestrator _foundry;
+    private readonly IConfigService _configService;
+    private readonly IClipboardService _clipboardService;
+    private readonly IStartupService _startupService;
+    private readonly IFileLogger _logger;
+    private readonly IModelCatalogService _modelCatalog;
+    private readonly IModelManager _modelManager;
     private AppConfig _config;
     private DispatcherTimer? _captureTimer;
     private bool _finalizing;
@@ -27,14 +27,21 @@ public partial class SettingsWindow : Window
     private string? _activeSortBy;
     private ListSortDirection _activeSortDirection = ListSortDirection.Ascending;
 
-    public SettingsWindow(ConfigService configService, ClipboardService clipboardService, StartupService startupService, FileLogger logger, FoundryOrchestrator foundry)
+    public SettingsWindow(
+        IConfigService configService,
+        IClipboardService clipboardService,
+        IStartupService startupService,
+        IFileLogger logger,
+        IModelCatalogService modelCatalog,
+        IModelManager modelManager)
     {
         InitializeComponent();
         _configService = configService;
         _clipboardService = clipboardService;
         _startupService = startupService;
         _logger = logger;
-        _foundry = foundry;
+        _modelCatalog = modelCatalog;
+        _modelManager = modelManager;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -48,7 +55,6 @@ public partial class SettingsWindow : Window
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
         CustomPromptTextBox.Text = _config.CustomSystemPrompt ?? string.Empty;
 
-        // New options fields
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
         PasteThresholdTextBox.Text = _config.PasteThresholdCharacters.ToString();
 
@@ -69,28 +75,9 @@ public partial class SettingsWindow : Window
         LoadingModelsText.Visibility = Visibility.Visible;
         _displayNameToAlias.Clear();
 
-        // Wait for Foundry Local to finish initializing (up to ~15 seconds)
-        int attempts = 0;
-        while (!_foundry.IsInitialized && attempts < 30)
-        {
-            await Task.Delay(500);
-            attempts++;
-        }
-
-        if (!_foundry.IsInitialized)
-        {
-            _logger.Log("Foundry Local not initialized after waiting. Showing limited model options.");
-            ChatModelComboBox.Items.Clear();
-            ChatModelComboBox.Items.Add(ModelCatalog.OtherOption);
-            ChatModelComboBox.IsEnabled = true;
-            LoadingModelsText.Visibility = Visibility.Collapsed;
-            ChatModelComboBox.SelectedItem = ModelCatalog.OtherOption;
-            return;
-        }
-
         try
         {
-            var models = await _foundry.ListAvailableChatModelsAsync();
+            var models = await _modelCatalog.ListAvailableChatModelsAsync();
 
             ChatModelComboBox.Items.Clear();
             foreach (var (alias, displayName) in models)
@@ -102,7 +89,6 @@ public partial class SettingsWindow : Window
             ChatModelComboBox.IsEnabled = true;
             LoadingModelsText.Visibility = Visibility.Collapsed;
 
-            // Try to select the currently configured model
             var configuredAlias = _config.ChatModelId;
             var configuredDisplay = models.FirstOrDefault(m => m.Alias == configuredAlias).DisplayName;
             if (configuredDisplay != null)
@@ -140,26 +126,9 @@ public partial class SettingsWindow : Window
         WhisperModelComboBox.SelectedIndex = 0;
         _whisperDisplayNameToAlias.Clear();
 
-        int attempts = 0;
-        while (!_foundry.IsInitialized && attempts < 30)
-        {
-            await Task.Delay(500);
-            attempts++;
-        }
-
-        if (!_foundry.IsInitialized)
-        {
-            WhisperModelComboBox.Items.Clear();
-            WhisperModelComboBox.Items.Add("whisper-tiny");
-            _whisperDisplayNameToAlias["whisper-tiny"] = "whisper-tiny";
-            WhisperModelComboBox.SelectedIndex = 0;
-            WhisperModelComboBox.IsEnabled = true;
-            return;
-        }
-
         try
         {
-            var models = await _foundry.ListAvailableWhisperModelsAsync();
+            var models = await _modelCatalog.ListAvailableWhisperModelsAsync();
 
             WhisperModelComboBox.Items.Clear();
             foreach (var (alias, displayName) in models)
@@ -196,17 +165,18 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            int attempts = 0;
-            while (!_foundry.IsInitialized && attempts < 30)
+            var statusList = await _modelCatalog.GetModelStatusListAsync();
+
+            // Augment with loaded state from ModelManager
+            var chatLoaded = _modelManager.LoadedChatModelAlias;
+            var whisperLoaded = _modelManager.LoadedWhisperModelAlias;
+            var augmented = statusList.Select(s => s with
             {
-                await Task.Delay(500);
-                attempts++;
-            }
+                IsLoaded = s.Alias.Equals(chatLoaded, StringComparison.OrdinalIgnoreCase)
+                        || s.Alias.Equals(whisperLoaded, StringComparison.OrdinalIgnoreCase)
+            }).ToList();
 
-            if (!_foundry.IsInitialized) return;
-
-            var statusList = await _foundry.GetModelStatusListAsync();
-            ModelsListView.ItemsSource = statusList;
+            ModelsListView.ItemsSource = augmented;
 
             if (!string.IsNullOrEmpty(_activeSortBy))
             {
@@ -241,7 +211,7 @@ public partial class SettingsWindow : Window
         try
         {
             _logger.Log($"Starting manual download for model: {selected.Alias}");
-            await Task.Run(() => _foundry.DownloadModelAsync(selected.Alias));
+            await _modelManager.DownloadModelAsync(selected.Alias);
             MessageBox.Show($"Model '{selected.DisplayName}' has been successfully downloaded and cached locally.", "Model Downloaded", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -276,7 +246,7 @@ public partial class SettingsWindow : Window
         try
         {
             _logger.Log($"Manually unloading model: {selected.Alias}");
-            await _foundry.UnloadModelAsync(selected.Alias);
+            await _modelManager.UnloadModelAsync(selected.Alias);
             MessageBox.Show($"Model '{selected.DisplayName}' has been unloaded from system memory.", "Model Unloaded", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -390,7 +360,6 @@ public partial class SettingsWindow : Window
             }
             else
             {
-                // No regular key pressed — check for stable modifiers (modifier-only hotkey)
                 if (capturedMods.Count > 0 && capturedMods.SetEquals(stableMods))
                 {
                     if (modsStableSince == null)
@@ -447,13 +416,15 @@ public partial class SettingsWindow : Window
 
         if (knownModifiers.Contains(parts[^1]))
         {
-            _config.HotkeyModifiers = string.Join("+", parts);
-            _config.HotkeyKey = "";
+            _config = _config with { HotkeyModifiers = string.Join("+", parts), HotkeyKey = "" };
         }
         else
         {
-            _config.HotkeyKey = parts[^1];
-            _config.HotkeyModifiers = string.Join("+", parts[..^1]);
+            _config = _config with
+            {
+                HotkeyKey = parts[^1],
+                HotkeyModifiers = string.Join("+", parts[..^1])
+            };
         }
 
         if (IsDangerousShortcut(_config.HotkeyModifiers, _config.HotkeyKey))
@@ -467,35 +438,35 @@ public partial class SettingsWindow : Window
         }
 
         if (ModeComboBox.SelectedIndex >= 0)
-            _config.DefaultMode = (FormatMode)ModeComboBox.SelectedIndex;
+            _config = _config with { DefaultMode = (FormatMode)ModeComboBox.SelectedIndex };
 
-        _config.ModelIdleTtlMinutes = (int)TtlSlider.Value;
-        _config.AutoStartWithWindows = AutoStartCheckBox.IsChecked == true;
-        _config.AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true;
-        _config.NotificationsEnabled = NotificationsCheckBox.IsChecked == true;
-        _config.CustomSystemPrompt = string.IsNullOrWhiteSpace(CustomPromptTextBox.Text) ? null : CustomPromptTextBox.Text.Trim();
+        _config = _config with
+        {
+            ModelIdleTtlMinutes = (int)TtlSlider.Value,
+            AutoStartWithWindows = AutoStartCheckBox.IsChecked == true,
+            AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true,
+            NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
+            CustomSystemPrompt = string.IsNullOrWhiteSpace(CustomPromptTextBox.Text) ? null : CustomPromptTextBox.Text.Trim()
+        };
 
-        // Clipboard Paste
-        _config.UseClipboardPaste = UsePasteCheckBox.IsChecked == true;
+        _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };
         if (int.TryParse(PasteThresholdTextBox.Text, out var threshold))
         {
-            _config.PasteThresholdCharacters = threshold;
+            _config = _config with { PasteThresholdCharacters = threshold };
         }
         else
         {
-            _config.PasteThresholdCharacters = 150;
+            _config = _config with { PasteThresholdCharacters = 150 };
         }
 
-        // Whisper model selection
         var selectedWhisperDisplay = WhisperModelComboBox.SelectedItem as string;
         var proposedWhisperAlias = selectedWhisperDisplay != null
             ? _whisperDisplayNameToAlias.GetValueOrDefault(selectedWhisperDisplay, selectedWhisperDisplay)
             : "whisper-tiny";
 
         var oldWhisperModel = _config.WhisperModelId;
-        _config.WhisperModelId = proposedWhisperAlias;
+        _config = _config with { WhisperModelId = proposedWhisperAlias };
 
-        // Chat model selection
         var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
         var proposedAlias = selectedDisplay == ModelCatalog.OtherOption
             ? CustomModelTextBox.Text.Trim()
@@ -511,8 +482,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // Validate model alias against catalog
-        bool isValid = await _foundry.IsModelInCatalogAsync(proposedAlias);
+        bool isValid = await _modelCatalog.IsModelInCatalogAsync(proposedAlias);
         if (!isValid)
         {
             var result = MessageBox.Show(
@@ -524,28 +494,25 @@ public partial class SettingsWindow : Window
                 return;
         }
 
-        _config.ChatModelId = proposedAlias;
+        _config = _config with { ChatModelId = proposedAlias };
 
         _startupService.SetEnabled(_config.AutoStartWithWindows);
-
         await _configService.SaveAsync(_config);
 
-        // Unload chat model so the next pipeline run loads the newly selected one
         try
         {
-            await _foundry.UnloadChatModelAsync();
+            await _modelManager.UnloadChatModelAsync();
         }
         catch (Exception ex)
         {
             _logger.LogException(ex, "UnloadChatModelAsync on settings save");
         }
 
-        // Unload whisper model if changed so the next pipeline run loads the newly selected one
         if (proposedWhisperAlias != oldWhisperModel)
         {
             try
             {
-                await _foundry.UnloadWhisperModelAsync();
+                await _modelManager.UnloadWhisperModelAsync();
             }
             catch (Exception ex)
             {
@@ -555,13 +522,6 @@ public partial class SettingsWindow : Window
 
         DialogResult = true;
         Close();
-    }
-
-    private static bool IsValidKey(string key)
-    {
-        if (string.IsNullOrWhiteSpace(key)) return true; // modifier-only is valid
-        if (key.Length == 1 && char.IsLetterOrDigit(key[0])) return true;
-        return Enum.TryParse<Key>(key, true, out _);
     }
 
     private static bool IsDangerousShortcut(string modifiers, string key)
@@ -574,30 +534,24 @@ public partial class SettingsWindow : Window
 
         var k = key.ToUpperInvariant();
 
-        // Block bare Win key (opens Start menu)
         if (hasWin && !hasCtrl && !hasAlt && !hasShift && string.IsNullOrEmpty(k)) return true;
 
-        // Win + key shortcuts — core Windows shell shortcuts
         if (hasWin && !hasCtrl && !hasAlt && !hasShift && !string.IsNullOrEmpty(k))
         {
             var winReserved = new[] { "L", "R", "E", "I", "X", "TAB", "A", "S", "Q", "P", "D", "M", "N", "U", "V", "SHIFT", "C", "Z", "J", "H", "K", "G", "T", "COMMA", "PERIOD", "NUMLOCK", "PAUSE", "BREAK", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PGUP", "PGDN", "INSERT", "DELETE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "PRINTSCREEN", "SNAPSHOT", "SNAP", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
             if (winReserved.Contains(k)) return true;
         }
 
-        // Ctrl + Alt + Del (Secure Attention Sequence)
         if (hasCtrl && hasAlt && !hasShift && (k == "DELETE" || k == "DEL")) return true;
 
-        // Alt + Tab / Alt + Esc / Alt + F4
         if (hasAlt && !hasCtrl && !hasShift && !hasWin && !string.IsNullOrEmpty(k))
         {
             var altReserved = new[] { "TAB", "ESC", "F4" };
             if (altReserved.Contains(k)) return true;
         }
 
-        // Ctrl + Alt + Tab
         if (hasCtrl && hasAlt && !hasShift && !hasWin && k == "TAB") return true;
 
-        // PrintScreen alone
         if (!hasWin && !hasCtrl && !hasAlt && !hasShift && (k == "PRINTSCREEN" || k == "SNAPSHOT" || k == "SNAP")) return true;
 
         return false;
@@ -635,8 +589,8 @@ public partial class SettingsWindow : Window
         ListSortDirection direction;
         if (_activeSortBy == sortBy)
         {
-            direction = _activeSortDirection == ListSortDirection.Ascending 
-                ? ListSortDirection.Descending 
+            direction = _activeSortDirection == ListSortDirection.Ascending
+                ? ListSortDirection.Descending
                 : ListSortDirection.Ascending;
         }
         else
@@ -685,15 +639,13 @@ public partial class SettingsWindow : Window
             {
                 if (column.Header is string headerText)
                 {
-                    // Clean previous symbols
                     headerText = headerText.Replace(" ▲", "").Replace(" ▼", "");
-                    
-                    // If this is the active sorted column, add symbol
+
                     if (column == clickedHeader.Column)
                     {
                         headerText += (direction == ListSortDirection.Ascending) ? " ▲" : " ▼";
                     }
-                    
+
                     column.Header = headerText;
                 }
             }

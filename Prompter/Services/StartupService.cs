@@ -3,18 +3,17 @@ using Microsoft.Win32;
 
 namespace Prompter.Services;
 
-public class StartupService
+public class StartupService : IStartupService
 {
     private const string RegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string AppName = "Prompter";
 
     private readonly string _executablePath;
-    private readonly FileLogger _logger;
+    private readonly IFileLogger _logger;
 
-    public StartupService()
+    public StartupService(IFileLogger logger)
     {
-        _logger = new FileLogger();
-        // Process.MainModule.FileName is reliable for both regular and single-file publish
+        _logger = logger;
         _executablePath = Process.GetCurrentProcess().MainModule?.FileName
                           ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
         if (_executablePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
@@ -31,7 +30,6 @@ public class StartupService
             var value = key?.GetValue(AppName) as string;
             if (string.IsNullOrEmpty(value)) return false;
 
-            // Verify the stored path still points to the current executable
             var storedPath = value.Trim('"');
             return storedPath.Equals(_executablePath, StringComparison.OrdinalIgnoreCase);
         }

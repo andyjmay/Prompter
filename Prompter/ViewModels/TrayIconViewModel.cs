@@ -2,20 +2,22 @@ using System.Windows;
 using System.Windows.Input;
 using Prompter.Models;
 using Prompter.Services;
-using Prompter.Views;
 
 namespace Prompter.ViewModels;
 
-public class TrayIconViewModel : IDisposable
+public class TrayIconViewModel : IAsyncDisposable
 {
-    private readonly ConfigService _configService;
-    private readonly HotkeyService _hotkeyService;
-    private readonly PipelineService _pipelineService;
-    private readonly ClipboardService _clipboardService;
-    private readonly StartupService _startupService;
-    private readonly FileLogger _logger;
-    private readonly FoundryOrchestrator _foundry;
+    private readonly IConfigService _configService;
+    private readonly IHotkeyService _hotkeyService;
+    private readonly IPipelineOrchestrator _pipelineService;
+    private readonly IClipboardService _clipboardService;
+    private readonly IStartupService _startupService;
+    private readonly IFileLogger _logger;
+    private readonly IModelCatalogService _modelCatalog;
+    private readonly IModelManager _modelManager;
+    private readonly IDialogService _dialogService;
     private AppConfig _config;
+    private readonly EventHandler<AppConfig> _onConfigChanged;
 
     private string? _lastOutput;
 
@@ -30,13 +32,15 @@ public class TrayIconViewModel : IDisposable
     public bool IsDebug => _config.DefaultMode == FormatMode.Debug;
 
     public TrayIconViewModel(
-        ConfigService configService,
-        HotkeyService hotkeyService,
-        PipelineService pipelineService,
-        ClipboardService clipboardService,
-        StartupService startupService,
-        FileLogger logger,
-        FoundryOrchestrator foundry)
+        IConfigService configService,
+        IHotkeyService hotkeyService,
+        IPipelineOrchestrator pipelineService,
+        IClipboardService clipboardService,
+        IStartupService startupService,
+        IFileLogger logger,
+        IModelCatalogService modelCatalog,
+        IModelManager modelManager,
+        IDialogService dialogService)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
@@ -44,7 +48,9 @@ public class TrayIconViewModel : IDisposable
         _clipboardService = clipboardService;
         _startupService = startupService;
         _logger = logger;
-        _foundry = foundry;
+        _modelCatalog = modelCatalog;
+        _modelManager = modelManager;
+        _dialogService = dialogService;
         _config = configService.Load();
 
         OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
@@ -52,28 +58,13 @@ public class TrayIconViewModel : IDisposable
         SetModeCommand = new RelayCommand(param => SetMode(param?.ToString()));
         CopyLastOutputCommand = new RelayCommand(_ => CopyLastOutput());
 
-        _hotkeyService.RecordingStarted += OnRecordingStarted;
-        _hotkeyService.RecordingStopped += OnRecordingStopped;
+        _onConfigChanged = (_, cfg) => _config = cfg;
+        _configService.ConfigChanged += _onConfigChanged;
     }
 
-    private Window? _hostWindow;
-
-    public void Initialize(Window window)
+    public void Initialize()
     {
-        _hostWindow = window;
-        _hotkeyService.Initialize(window, _config.HotkeyModifiers, _config.HotkeyKey);
-    }
-
-    private void OnRecordingStarted()
-    {
-        _logger.Log("VM: RecordingStarted");
-        _pipelineService.StartRecording();
-    }
-
-    private void OnRecordingStopped()
-    {
-        _logger.Log("VM: RecordingStopped");
-        _pipelineService.StopRecordingAndProcess(_config.DefaultMode);
+        _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
     }
 
     private void OpenSettings()
@@ -83,37 +74,51 @@ public class TrayIconViewModel : IDisposable
 
         _hotkeyService.Unregister();
 
-        var settings = new SettingsWindow(_configService, _clipboardService, _startupService, _logger, _foundry);
-        settings.ShowDialog();
+        bool saved = _dialogService.ShowSettingsDialog(
+            _configService,
+            _clipboardService,
+            _startupService,
+            _logger,
+            _modelCatalog,
+            _modelManager);
+
         _config = _configService.Load();
 
-        _logger.Log($"Settings closed. Re-registering hotkey: {_config.HotkeyModifiers}+{_config.HotkeyKey}.");
-        if (_hostWindow != null)
+        if (saved)
         {
+            _logger.Log($"Settings closed. Re-registering hotkey: {_config.HotkeyModifiers}+{_config.HotkeyKey}.");
             try
             {
-                _hotkeyService.Dispose();
-                _hotkeyService.Initialize(_hostWindow, _config.HotkeyModifiers, _config.HotkeyKey);
+                _hotkeyService.UpdateHotkey(_config.HotkeyModifiers, _config.HotkeyKey);
             }
             catch (Exception ex)
             {
                 _logger.LogException(ex, "Hotkey re-registration failed");
-                MessageBox.Show(
-                    $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}'.\n\nIt may already be in use by another application. Reverting to the previous hotkey.",
+                _dialogService.ShowWarning(
                     "Hotkey Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                _config.HotkeyKey = oldKey;
-                _config.HotkeyModifiers = oldMods;
+                    $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}'.\n\nIt may already be in use by another application. Reverting to the previous hotkey.");
+
+                _config = _config with { HotkeyKey = oldKey, HotkeyModifiers = oldMods };
                 _ = _configService.SaveAsync(_config);
                 try
                 {
-                    _hotkeyService.Initialize(_hostWindow, oldMods, oldKey);
+                    _hotkeyService.UpdateHotkey(oldMods, oldKey);
                 }
                 catch (Exception ex2)
                 {
                     _logger.LogException(ex2, "Hotkey revert also failed");
                 }
+            }
+        }
+        else
+        {
+            try
+            {
+                _hotkeyService.UpdateHotkey(oldMods, oldKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Hotkey re-register after cancel failed");
             }
         }
     }
@@ -122,7 +127,7 @@ public class TrayIconViewModel : IDisposable
     {
         if (Enum.TryParse<FormatMode>(modeName, out var mode))
         {
-            _config.DefaultMode = mode;
+            _config = _config with { DefaultMode = mode };
             _ = _configService.SaveAsync(_config);
             OnPropertyChanged(nameof(IsStandard));
             OnPropertyChanged(nameof(IsFormal));
@@ -144,11 +149,10 @@ public class TrayIconViewModel : IDisposable
         _lastOutput = text;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _hotkeyService.RecordingStarted -= OnRecordingStarted;
-        _hotkeyService.RecordingStopped -= OnRecordingStopped;
-        _hotkeyService.Dispose();
+        _configService.ConfigChanged -= _onConfigChanged;
+        await _hotkeyService.DisposeAsync();
     }
 
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;

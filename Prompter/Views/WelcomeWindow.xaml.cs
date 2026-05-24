@@ -1,19 +1,13 @@
 using System.Windows;
-using Prompter.Models;
 
 namespace Prompter.Views;
 
 public partial class WelcomeWindow : Window
 {
-    private readonly AppConfig _config;
-
-    public WelcomeWindow(AppConfig config)
+    public WelcomeWindow(string hotkeyDisplay)
     {
         InitializeComponent();
-        _config = config;
-        HotkeyText.Text = string.IsNullOrEmpty(_config.HotkeyKey)
-            ? _config.HotkeyModifiers
-            : $"{_config.HotkeyModifiers} + {_config.HotkeyKey}";
+        HotkeyText.Text = hotkeyDisplay;
     }
 
     private void GotIt_Click(object sender, RoutedEventArgs e)

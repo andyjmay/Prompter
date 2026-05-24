@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using Prompter.Services;
 using Prompter.ViewModels;
@@ -9,80 +10,69 @@ namespace Prompter;
 
 public partial class App : Application
 {
-    private TrayIconView? _trayView;
-    private TrayIconViewModel? _trayVm;
+    private IServiceProvider? _serviceProvider;
     private Mutex? _singleInstanceMutex;
-
-    // Keep references for disposal
-    private AudioRecorderService? _recorder;
-    private FoundryOrchestrator? _foundry;
-    private PipelineService? _pipeline;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-
-        // Global exception handlers — last line of defense
-        DispatcherUnhandledException += OnDispatcherUnhandledException;
-        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
-        SystemEvents.PowerModeChanged += OnPowerModeChanged;
-
-        var logger = new FileLogger();
-        logger.Log("Prompter starting.");
 
         // Single-instance enforcement
         const string mutexName = "Prompter_SingleInstance_Mutex";
         _singleInstanceMutex = new Mutex(true, mutexName, out bool createdNew);
         if (!createdNew)
         {
-            logger.Log("Another instance of Prompter is already running. Exiting.");
             _singleInstanceMutex.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
             return;
         }
 
-        var configService = new ConfigService();
-        var clipboardService = new ClipboardService(logger);
-        _recorder = new AudioRecorderService(logger);
-        var injector = new InputInjectorService(logger);
-        var startupService = new StartupService();
-        var audioFeedback = new AudioFeedbackService(configService);
+        // Build DI container
+        var services = new ServiceCollection();
+        ConfigureServices(services);
+        _serviceProvider = services.BuildServiceProvider();
 
-        // Check first-run BEFORE Load() creates the config file
-        bool isFirstRun = configService.IsFirstRun();
+        var logger = _serviceProvider.GetRequiredService<IFileLogger>();
+        logger.Log("Prompter starting.");
 
-        // Sync registry with config on startup
+        var exceptionHandler = _serviceProvider.GetRequiredService<IExceptionHandler>();
+
+        // Global exception handlers
+        DispatcherUnhandledException += (_, args) =>
+        {
+            exceptionHandler.HandleDispatcherException(args.Exception);
+            args.Handled = true;
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            exceptionHandler.HandleUnobservedTaskException(args.Exception);
+            args.SetObserved();
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                exceptionHandler.HandleFatalException(ex);
+        };
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        // Sync startup registry
+        var configService = _serviceProvider.GetRequiredService<IConfigService>();
+        var startupService = _serviceProvider.GetRequiredService<IStartupService>();
         var config = configService.Load();
         if (config.AutoStartWithWindows != startupService.IsEnabled())
         {
             startupService.SetEnabled(config.AutoStartWithWindows);
         }
 
-        _foundry = new FoundryOrchestrator(logger, configService);
-
-        // Report model download progress via tray balloon
-        _foundry.ModelDownloadProgress += (model, pct) =>
-        {
-            _trayView?.Dispatcher.Invoke(() =>
-            {
-                if (configService.Load().NotificationsEnabled)
-                {
-                    _trayView?.TrayIcon.ShowBalloonTip(
-                        "Prompter — Downloading AI models",
-                        $"{model}: {pct:F0}%",
-                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
-                }
-            });
-        };
-
+        // Initialize Foundry in background
+        var accessor = _serviceProvider.GetRequiredService<IFoundryLocalManagerAccessor>();
+        var modelManager = _serviceProvider.GetRequiredService<IModelManager>();
         _ = Task.Run(async () =>
         {
             try
             {
-                var cfg = configService.Load();
-                await _foundry.InitializeAsync(cfg.ModelIdleTtlMinutes);
+                await modelManager.InitializeAsync(config.ModelIdleTtlMinutes);
                 logger.Log("Foundry Local initialized.");
             }
             catch (Exception ex)
@@ -91,116 +81,55 @@ public partial class App : Application
             }
         });
 
-        _pipeline = new PipelineService(_recorder, _foundry, clipboardService, injector, configService, audioFeedback, logger, Dispatcher);
+        // Build tray UI
+        var trayView = _serviceProvider.GetRequiredService<TrayIconView>();
+        var trayVm = _serviceProvider.GetRequiredService<TrayIconViewModel>();
+        var eventCoordinator = _serviceProvider.GetRequiredService<AppEventCoordinator>();
 
-        var hotkey = new HotkeyService(logger);
-
-        _trayVm = new TrayIconViewModel(configService, hotkey, _pipeline, clipboardService, startupService, logger, _foundry);
-        _pipeline.OutputReady += text => _trayVm.SetLastOutput(text);
-
-        _trayView = new TrayIconView();
-        _trayView.Loaded += (_, _) =>
+        trayView.Loaded += (_, _) =>
         {
-            _trayView.TrayIcon.DataContext = _trayVm;
-            config = configService.Load();
-            bool hotkeyOk = false;
-            try
-            {
-                _trayVm.Initialize(_trayView);
-                hotkeyOk = true;
-            }
-            catch (Exception ex)
-            {
-                logger.LogException(ex, "Hotkey registration on startup");
-                var hotkeyDisplay = string.IsNullOrEmpty(config.HotkeyKey)
-                    ? config.HotkeyModifiers
-                    : $"{config.HotkeyModifiers} + {config.HotkeyKey}";
-                if (config.NotificationsEnabled)
-                {
-                    _trayView.TrayIcon.ShowBalloonTip(
-                        "Prompter — Hotkey Error",
-                        $"Could not register hotkey {hotkeyDisplay}. It may be in use by another app. Open Settings to change it.",
-                        Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Warning);
-                }
-                MessageBox.Show(
-                    $"Could not register the global hotkey '{hotkeyDisplay}'.\n\nIt may already be in use by another application. Please open Prompter Settings and choose a different hotkey.",
-                    "Prompter — Hotkey Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
+            trayView.TrayIcon.DataContext = trayVm;
+            trayVm.Initialize();
+            eventCoordinator.Initialize();
 
-            // Wire balloon from pipeline to tray icon
-            _pipeline.ShowBalloon += (title, msg) =>
+            // Show startup balloon
+            var cfg = configService.Load();
+            var hotkeyDisplay = string.IsNullOrEmpty(cfg.HotkeyKey)
+                ? cfg.HotkeyModifiers
+                : $"{cfg.HotkeyModifiers} + {cfg.HotkeyKey}";
+            if (cfg.NotificationsEnabled)
             {
-                if (config.NotificationsEnabled)
-                    _trayView?.TrayIcon.ShowBalloonTip(title, msg, Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
-            };
-
-            // Show startup balloon so the user knows the app is alive
-            if (hotkeyOk && config.NotificationsEnabled)
-            {
-                var hotkeyDisplay = string.IsNullOrEmpty(config.HotkeyKey)
-                    ? config.HotkeyModifiers
-                    : $"{config.HotkeyModifiers} + {config.HotkeyKey}";
-                _trayView.TrayIcon.ShowBalloonTip(
+                trayView.TrayIcon.ShowBalloonTip(
                     "Prompter is running",
                     $"Press and hold {hotkeyDisplay} to start dictating.",
                     Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
             }
         };
-        _trayView.Show();
+        trayView.Show();
 
-        // On first run, show a visible welcome window so the user isn't confused
-        if (isFirstRun)
-        {
-            var welcome = new WelcomeWindow(config);
-            welcome.ShowDialog();
-        }
+        // First run
+        var firstRunService = _serviceProvider.GetRequiredService<IFirstRunService>();
+        _ = firstRunService.CheckAndShowAsync();
 
-        // Hide MainWindow
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-    }
-
-    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
-    {
-        var logger = new FileLogger();
-        logger.LogException(e.Exception, "DispatcherUnhandledException");
-        e.Handled = true;
-        MessageBox.Show(
-            $"An unexpected error occurred:\n{e.Exception.Message}\n\nPrompter will continue running, but you may want to restart it.",
-            "Prompter Error",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
-    }
-
-    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
-    {
-        var logger = new FileLogger();
-        logger.LogException(e.Exception, "UnobservedTaskException");
-        e.SetObserved();
-    }
-
-    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
-    {
-        var logger = new FileLogger();
-        if (e.ExceptionObject is Exception ex)
-            logger.LogException(ex, "UnhandledException");
-        else
-            logger.Log("[ERROR] UnhandledException: " + e.ExceptionObject?.ToString());
     }
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
-        var logger = new FileLogger();
+        if (_serviceProvider == null) return;
+
+        var logger = _serviceProvider.GetRequiredService<IFileLogger>();
         if (e.Mode == PowerModes.Resume)
         {
             logger.Log("System resumed from sleep. Re-initializing Foundry Local.");
+            var modelManager = _serviceProvider.GetRequiredService<IModelManager>();
+            var configService = _serviceProvider.GetRequiredService<IConfigService>();
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var cfg = new ConfigService().Load();
-                    await _foundry?.InitializeAsync(cfg.ModelIdleTtlMinutes)!;
+                    var cfg = configService.Load();
+                    await modelManager.InitializeAsync(cfg.ModelIdleTtlMinutes);
                 }
                 catch (Exception ex)
                 {
@@ -211,17 +140,30 @@ public partial class App : Application
         else if (e.Mode == PowerModes.Suspend)
         {
             logger.Log("System suspending. Unloading models.");
-            _foundry?.Dispose();
+            var modelManager = _serviceProvider.GetRequiredService<IModelManager>();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await modelManager.DisposeAsync();
+                }
+                catch { }
+            });
         }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-        _trayVm?.Dispose();
-        _pipeline?.Dispose();
-        _recorder?.Dispose();
-        _foundry?.Dispose();
+
+        if (_serviceProvider is IAsyncDisposable asyncDisposable)
+        {
+            asyncDisposable.DisposeAsync().AsTask().Wait();
+        }
+        else
+        {
+            (_serviceProvider as IDisposable)?.Dispose();
+        }
 
         if (_singleInstanceMutex != null)
         {
@@ -230,5 +172,39 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    private static void ConfigureServices(IServiceCollection services)
+    {
+        // Core infrastructure
+        services.AddSingleton<IFileLogger, FileLogger>();
+        services.AddSingleton<IConfigService, ConfigService>();
+        services.AddSingleton<IStartupService, StartupService>();
+        services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IExceptionHandler, ExceptionHandler>();
+        services.AddSingleton<IFirstRunService, FirstRunService>();
+
+        // Foundry layer
+        services.AddSingleton<IFoundryLocalManagerAccessor, FoundryLocalManagerAccessor>();
+        services.AddSingleton<IModelManager, ModelManager>();
+        services.AddSingleton<ITranscriptionService, TranscriptionService>();
+        services.AddSingleton<ITextFormatter, TextFormatter>();
+        services.AddSingleton<IModelCatalogService, ModelCatalogService>();
+
+        // Pipeline and recording
+        services.AddSingleton<IAudioRecorderService, AudioRecorderService>();
+        services.AddSingleton<IAudioFeedbackService, AudioFeedbackService>();
+        services.AddSingleton<IClipboardService, ClipboardService>();
+        services.AddSingleton<IInputInjectorService, InputInjectorService>();
+        services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
+        services.AddTransient<IRecordingUIManager, RecordingUIManager>();
+
+        // Hotkey
+        services.AddSingleton<IHotkeyService, HotkeyService>();
+
+        // UI layer
+        services.AddSingleton<TrayIconViewModel>();
+        services.AddSingleton<TrayIconView>();
+        services.AddSingleton<AppEventCoordinator>();
     }
 }

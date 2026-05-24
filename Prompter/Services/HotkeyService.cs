@@ -1,38 +1,37 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Windows;
 using System.Windows.Input;
 
 namespace Prompter.Services;
 
-public class HotkeyService : IDisposable
+public class HotkeyService : IHotkeyService
 {
-    private readonly FileLogger _logger;
+    private readonly IFileLogger _logger;
     private IntPtr _hookId = IntPtr.Zero;
     private LowLevelKeyboardProc? _proc;
     private bool _isRecording;
     private CancellationTokenSource? _pollCts;
+    private Task? _pollTask;
     private DateTime _recordingStartTime;
 
-    // Parsed hotkey requirements
     private bool _needsWin;
     private bool _needsCtrl;
     private bool _needsAlt;
     private bool _needsShift;
-    private uint _requiredKeyVk; // 0 when no non-modifier key is required
+    private uint _requiredKeyVk;
 
-    // Track physically pressed keys from the hook itself
     private readonly HashSet<uint> _pressedVks = new();
+    private readonly object _stateLock = new();
 
     public event Action? RecordingStarted;
     public event Action? RecordingStopped;
 
-    public HotkeyService(FileLogger logger)
+    public HotkeyService(IFileLogger logger)
     {
         _logger = logger;
     }
 
-    public void Initialize(Window window, string modifiers, string key)
+    public void Initialize(string modifiers, string key)
     {
         ParseCombination(modifiers, key);
 
@@ -41,10 +40,16 @@ public class HotkeyService : IDisposable
         if (_hookId == IntPtr.Zero)
         {
             int err = Marshal.GetLastWin32Error();
-            throw new Win32Exception(err, $"SetWindowsHookEx failed for {modifiers}+{key}. A low-level keyboard hook could not be installed.");
+            throw new Win32Exception(err, $"SetWindowsHookEx failed for {modifiers}+{key}.");
         }
 
         _logger.Log($"Low-level keyboard hook installed: {modifiers}+{key}");
+    }
+
+    public void UpdateHotkey(string modifiers, string key)
+    {
+        Unregister();
+        Initialize(modifiers, key);
     }
 
     private void ParseCombination(string modifiers, string key)
@@ -87,34 +92,37 @@ public class HotkeyService : IDisposable
             bool isKeyUp = wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
             bool isInjected = (kbd.flags & LLKHF_INJECTED) != 0;
 
-            if (isKeyDown && !isInjected)
+            lock (_stateLock)
             {
-                _pressedVks.Add(vk);
-            }
-            else if (isKeyUp)
-            {
-                _pressedVks.Remove(vk);
-            }
-
-            if (!_isRecording && isKeyDown && !isInjected)
-            {
-                bool combo = IsCombinationPressedFromState();
-                if (combo)
+                if (isKeyDown && !isInjected)
                 {
-                    _logger.Log($"Hotkey detected (vk={vk}, state=[{string.Join(",", _pressedVks)}]) — starting recording.");
-                    _isRecording = true;
-                    _recordingStartTime = DateTime.Now;
-                    try
+                    _pressedVks.Add(vk);
+                }
+                else if (isKeyUp)
+                {
+                    _pressedVks.Remove(vk);
+                }
+
+                if (!_isRecording && isKeyDown && !isInjected)
+                {
+                    bool combo = IsCombinationPressedFromState();
+                    if (combo)
                     {
-                        RecordingStarted?.Invoke();
+                        _logger.Log($"Hotkey detected (vk={vk}) — starting recording.");
+                        _isRecording = true;
+                        _recordingStartTime = DateTime.Now;
+                        try
+                        {
+                            RecordingStarted?.Invoke();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogException(ex, "RecordingStarted handler threw");
+                            _isRecording = false;
+                            return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                        }
+                        StartReleasePolling();
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogException(ex, "RecordingStarted handler threw");
-                        _isRecording = false;
-                        return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                    }
-                    StartReleasePolling();
                 }
             }
         }
@@ -133,9 +141,10 @@ public class HotkeyService : IDisposable
 
     private void StartReleasePolling()
     {
+        _pollCts?.Cancel();
         _pollCts?.Dispose();
         _pollCts = new CancellationTokenSource();
-        Task.Run(async () =>
+        _pollTask = Task.Run(async () =>
         {
             try
             {
@@ -160,11 +169,14 @@ public class HotkeyService : IDisposable
                         var elapsed = DateTime.Now - _recordingStartTime;
                         if (elapsed < TimeSpan.FromMilliseconds(300))
                         {
-                            _logger.Log($"Keys released after {elapsed.TotalMilliseconds:F0} ms — below minimum hold (300 ms), keeping recording alive.");
+                            _logger.Log($"Keys released after {elapsed.TotalMilliseconds:F0} ms — below minimum hold (300 ms).");
                             continue;
                         }
 
-                        _isRecording = false;
+                        lock (_stateLock)
+                        {
+                            _isRecording = false;
+                        }
                         _pollCts.Cancel();
                         _logger.Log("Hotkey released — stopping recording.");
                         RecordingStopped?.Invoke();
@@ -184,8 +196,11 @@ public class HotkeyService : IDisposable
         _pollCts?.Cancel();
         _pollCts?.Dispose();
         _pollCts = null;
-        _isRecording = false;
-        _pressedVks.Clear();
+        lock (_stateLock)
+        {
+            _isRecording = false;
+            _pressedVks.Clear();
+        }
         if (_hookId != IntPtr.Zero)
         {
             UnhookWindowsHookEx(_hookId);
@@ -194,9 +209,13 @@ public class HotkeyService : IDisposable
         _logger.Log("Low-level keyboard hook unregistered.");
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         Unregister();
+        if (_pollTask != null)
+        {
+            try { await _pollTask; } catch (OperationCanceledException) { }
+        }
         _proc = null;
     }
 

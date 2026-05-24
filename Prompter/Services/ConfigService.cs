@@ -1,16 +1,17 @@
 using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Prompter.Models;
 
 namespace Prompter.Services;
 
-public class ConfigService
+public class ConfigService : IConfigService
 {
     private readonly string _configDir;
     private readonly string _configPath;
     private AppConfig? _cached;
     private readonly object _cacheLock = new();
+
+    public event EventHandler<AppConfig>? ConfigChanged;
 
     public ConfigService()
     {
@@ -30,14 +31,19 @@ public class ConfigService
             {
                 _cached = new AppConfig();
                 Directory.CreateDirectory(_configDir);
-                var json = JsonSerializer.Serialize(_cached, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_configPath, json);
+                SaveToDisk(_cached);
                 return _cached;
             }
 
             var jsonText = File.ReadAllText(_configPath);
-            _cached = JsonSerializer.Deserialize<AppConfig>(jsonText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                      ?? new AppConfig();
+            var deserialized = JsonSerializer.Deserialize<AppConfig>(jsonText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (deserialized is null)
+            {
+                _cached = new AppConfig();
+                return _cached;
+            }
+
+            _cached = Migrate(deserialized);
             return _cached;
         }
     }
@@ -51,10 +57,24 @@ public class ConfigService
         Directory.CreateDirectory(_configDir);
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(_configPath, json);
+        ConfigChanged?.Invoke(this, config);
     }
 
     public bool IsFirstRun()
     {
         return !File.Exists(_configPath);
+    }
+
+    private void SaveToDisk(AppConfig config)
+    {
+        Directory.CreateDirectory(_configDir);
+        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(_configPath, json);
+    }
+
+    private static AppConfig Migrate(AppConfig config)
+    {
+        // Future migrations go here based on config.Version
+        return config with { Version = 1 };
     }
 }

@@ -1,11 +1,11 @@
 namespace Prompter.Models;
 
-public class ModelStatusInfo
+public record ModelStatusInfo
 {
-    public string Alias { get; set; } = "";
-    public string DisplayName { get; set; } = "";
-    public bool IsCached { get; set; }
-    public bool IsLoaded { get; set; }
-    public string SizeDescription { get; set; } = "Unknown";
-    public string TaskType { get; set; } = "Unknown";
+    public string Alias { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public bool IsCached { get; init; }
+    public bool IsLoaded { get; init; }
+    public string SizeDescription { get; init; } = "Unknown";
+    public string TaskType { get; init; } = "Unknown";
 }

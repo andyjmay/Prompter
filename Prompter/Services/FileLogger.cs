@@ -1,9 +1,8 @@
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace Prompter.Services;
 
-public class FileLogger
+public class FileLogger : IFileLogger
 {
     private readonly string _logDir;
     private readonly object _lock = new();

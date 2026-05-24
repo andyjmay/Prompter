@@ -3,52 +3,77 @@ using System.Text;
 
 namespace Prompter.Services;
 
-public class InputInjectorService
+public class InputInjectorService : IInputInjectorService
 {
-    private readonly FileLogger _logger;
+    private readonly IFileLogger _logger;
 
-    public InputInjectorService(FileLogger logger)
+    public InputInjectorService(IFileLogger logger)
     {
         _logger = logger;
     }
 
     public void TypeText(string text)
     {
-        _logger.Log($"Injecting {text.Length} chars via SendInput.");
+        var sanitized = Sanitize(text);
+        _logger.Log($"Injecting {sanitized.Length} chars via SendInput.");
         const int chunkSize = 100; // max events per chunk (2 per char)
         int totalSent = 0;
         int cbSize = Marshal.SizeOf<INPUT>();
 
-        // Build event list, keeping surrogate pairs together
         var events = new List<INPUT>();
-        for (int i = 0; i < text.Length; i++)
+        for (int i = 0; i < sanitized.Length; i++)
         {
-            char c = text[i];
+            char c = sanitized[i];
             events.Add(MakeKeyDown(c));
             events.Add(MakeKeyUp(c));
-
-            // If this is a high surrogate, the next char is the low surrogate.
-            // We already include it in the next iteration, which is correct
-            // because SendInput with KEYEVENTF_UNICODE sends raw UTF-16 code units.
         }
 
-        // Send in batches
-        for (int i = 0; i < events.Count; i += chunkSize)
+        for (int i = 0; i < events.Count;)
         {
             int len = Math.Min(chunkSize, events.Count - i);
             var batch = events.GetRange(i, len).ToArray();
-            uint sent = SendInput((uint)batch.Length, batch, cbSize);
+            uint sent = SendInputRetry(batch, cbSize);
             if (sent != batch.Length)
             {
                 _logger.Log($"SendInput sent {sent}/{batch.Length} events. Last Win32 error: {Marshal.GetLastWin32Error()}");
             }
             totalSent += (int)sent;
+            i += (int)sent; // retry unsent events
         }
 
         if (totalSent != events.Count)
         {
             _logger.Log($"SendInput total mismatch: expected {events.Count} input events, sent {totalSent}.");
         }
+    }
+
+    private static uint SendInputRetry(INPUT[] inputs, int cbSize)
+    {
+        const int maxRetries = 3;
+        int offset = 0;
+        uint totalSent = 0;
+        for (int attempt = 0; attempt < maxRetries && offset < inputs.Length; attempt++)
+        {
+            if (attempt > 0) Thread.Sleep(50);
+            var slice = inputs[offset..];
+            uint sent = SendInput((uint)slice.Length, slice, cbSize);
+            totalSent += sent;
+            offset += (int)sent;
+            if (sent == (uint)slice.Length) break;
+        }
+        return totalSent;
+    }
+
+    private static string Sanitize(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        var sb = new StringBuilder(text.Length);
+        foreach (char c in text)
+        {
+            if (c == '\0') continue;
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     public void SimulatePaste()
@@ -58,17 +83,13 @@ public class InputInjectorService
 
         var events = new INPUT[]
         {
-            // Ctrl KeyDown
             new() { type = 1, ki = new KEYBDINPUT { wVk = 0x11, dwFlags = 0 } },
-            // V KeyDown
             new() { type = 1, ki = new KEYBDINPUT { wVk = 0x56, dwFlags = 0 } },
-            // V KeyUp
-            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x56, dwFlags = 0x0002 /* KEYEVENTF_KEYUP */ } },
-            // Ctrl KeyUp
-            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x11, dwFlags = 0x0002 /* KEYEVENTF_KEYUP */ } }
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x56, dwFlags = 0x0002 } },
+            new() { type = 1, ki = new KEYBDINPUT { wVk = 0x11, dwFlags = 0x0002 } }
         };
 
-        uint sent = SendInput((uint)events.Length, events, cbSize);
+        uint sent = SendInputRetry(events, cbSize);
         if (sent != events.Length)
         {
             _logger.Log($"SimulatePaste sent {sent}/{events.Length} events. Last Win32 error: {Marshal.GetLastWin32Error()}");
@@ -78,13 +99,13 @@ public class InputInjectorService
     private static INPUT MakeKeyDown(char c) => new()
     {
         type = 1,
-        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 /* KEYEVENTF_UNICODE */ }
+        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 }
     };
 
     private static INPUT MakeKeyUp(char c) => new()
     {
         type = 1,
-        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 | 0x0002 /* KEYEVENTF_UNICODE | KEYEVENTF_KEYUP */ }
+        ki = new KEYBDINPUT { wScan = c, dwFlags = 0x0004 | 0x0002 }
     };
 
     [DllImport("user32.dll", SetLastError = true)]

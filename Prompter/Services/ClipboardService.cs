@@ -1,49 +1,18 @@
-using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace Prompter.Services;
 
-public class ClipboardService
+public class ClipboardService : IClipboardService
 {
-    private readonly FileLogger _logger;
+    private readonly IFileLogger _logger;
 
-    public ClipboardService(FileLogger logger)
+    public ClipboardService(IFileLogger logger)
     {
         _logger = logger;
     }
 
     public ClipboardSnapshot SaveClipboard()
     {
-        try
-        {
-            var data = Clipboard.GetDataObject();
-            if (data == null) return new ClipboardSnapshot();
-
-            // Try full snapshot
-            var formats = data.GetFormats();
-            var entries = new Dictionary<string, object?>();
-            foreach (var fmt in formats)
-            {
-                try
-                {
-                    var val = data.GetData(fmt);
-                    if (val != null) entries[fmt] = val;
-                }
-                catch { /* some formats are non-serializable */ }
-            }
-
-            if (entries.Count > 0)
-            {
-                _logger.Log("Clipboard snapshot saved (full).");
-                return new ClipboardSnapshot { FullSnapshot = entries };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogException(ex, "Full clipboard snapshot failed");
-        }
-
-        // Fallback: text only
         try
         {
             var text = Clipboard.GetText();
@@ -72,19 +41,6 @@ public class ClipboardService
 
         try
         {
-            if (snapshot.FullSnapshot != null)
-            {
-                var data = new DataObject();
-                foreach (var kv in snapshot.FullSnapshot)
-                {
-                    if (kv.Value != null)
-                        data.SetData(kv.Key, kv.Value);
-                }
-                Clipboard.SetDataObject(data, true);
-                _logger.Log("Clipboard restored (full).");
-                return;
-            }
-
             if (snapshot.TextFallback != null)
             {
                 Clipboard.SetText(snapshot.TextFallback);
@@ -115,7 +71,6 @@ public class ClipboardService
 
 public class ClipboardSnapshot
 {
-    public Dictionary<string, object?>? FullSnapshot { get; set; }
     public string? TextFallback { get; set; }
-    public bool HasData => FullSnapshot != null || TextFallback != null;
+    public bool HasData => TextFallback != null;
 }

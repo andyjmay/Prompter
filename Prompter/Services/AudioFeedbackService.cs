@@ -1,13 +1,14 @@
+using System.Timers;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
 namespace Prompter.Services;
 
-public class AudioFeedbackService
+public class AudioFeedbackService : IAudioFeedbackService
 {
-    private readonly ConfigService _configService;
+    private readonly IConfigService _configService;
 
-    public AudioFeedbackService(ConfigService configService)
+    public AudioFeedbackService(IConfigService configService)
     {
         _configService = configService;
     }
@@ -16,7 +17,6 @@ public class AudioFeedbackService
     {
         if (_configService.Load().AudioFeedbackEnabled)
         {
-            // Play an elegant rising double-tone chime (E5 -> B5)
             PlayChime(659.25, 987.77);
         }
     }
@@ -25,16 +25,16 @@ public class AudioFeedbackService
     {
         if (_configService.Load().AudioFeedbackEnabled)
         {
-            // Play a gentle falling double-tone chime (B5 -> E5)
             PlayChime(987.77, 659.25);
         }
     }
 
-    private void PlayChime(double freq1, double freq2)
+    private static void PlayChime(double freq1, double freq2)
     {
+        WaveOutEvent? waveOut = null;
+        System.Timers.Timer? fallbackTimer = null;
         try
         {
-            // Synthesize the two notes using NAudio SignalGenerator
             var firstTone = new SignalGenerator(44100, 1)
             {
                 Type = SignalGeneratorType.Sin,
@@ -49,22 +49,43 @@ public class AudioFeedbackService
                 Gain = 0.15
             }.Take(TimeSpan.FromMilliseconds(160));
 
-            // Sequence them together seamlessly
             var chime = new ConcatenatingSampleProvider(new[] { firstTone, secondTone });
 
-            var waveOut = new WaveOutEvent();
+            waveOut = new WaveOutEvent();
             waveOut.Init(chime);
-            waveOut.Play();
 
-            // Auto-dispose when finished playing
-            waveOut.PlaybackStopped += (s, e) =>
+            bool disposed = false;
+            fallbackTimer = new System.Timers.Timer(2000);
+            fallbackTimer.Elapsed += (_, _) =>
             {
-                waveOut.Dispose();
+                if (!disposed)
+                {
+                    disposed = true;
+                    waveOut?.Stop();
+                    waveOut?.Dispose();
+                    fallbackTimer?.Dispose();
+                }
             };
+            fallbackTimer.AutoReset = false;
+            fallbackTimer.Start();
+
+            waveOut.PlaybackStopped += (_, _) =>
+            {
+                if (!disposed)
+                {
+                    disposed = true;
+                    fallbackTimer?.Stop();
+                    fallbackTimer?.Dispose();
+                    waveOut?.Dispose();
+                }
+            };
+
+            waveOut.Play();
         }
         catch
         {
-            // Audio feedback is best-effort; suppress errors
+            waveOut?.Dispose();
+            fallbackTimer?.Dispose();
         }
     }
 }
