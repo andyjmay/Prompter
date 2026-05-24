@@ -11,6 +11,7 @@ public interface IModelManager : IAsyncDisposable
 
     Task InitializeAsync(int idleTtlMinutes);
     Task EnsureModelsLoadedAsync();
+    Task EnsureChatModelLoadedAsync(string alias);
     Task UnloadChatModelAsync();
     Task UnloadWhisperModelAsync();
     Task UnloadModelAsync(string alias);

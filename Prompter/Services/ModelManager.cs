@@ -140,6 +140,43 @@ public class ModelManager : IModelManager, IAsyncDisposable
         }
     }
 
+    public async Task EnsureChatModelLoadedAsync(string alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
+            throw new ArgumentException("Alias cannot be null or whitespace.", nameof(alias));
+
+        await _loadSemaphore.WaitAsync();
+        try
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(ModelManager));
+
+            if (_chatModel != null && _loadedChatAlias != alias)
+            {
+                _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{alias}'. Unloading old model.");
+                await _chatModel.UnloadAsync();
+                _chatModel = null;
+                _chatLoaded = false;
+                _loadedChatAlias = null;
+            }
+
+            if (_chatModel == null)
+            {
+                var catalog = await _accessor.Manager.GetCatalogAsync();
+                _chatModel = await TryLoadChatModelAsync(catalog, alias);
+                if (_chatModel == null)
+                    throw new InvalidOperationException($"Could not load chat model '{alias}'.");
+                _loadedChatAlias = alias;
+                _chatLoaded = true;
+            }
+
+            _lastUsed = DateTime.Now;
+        }
+        finally
+        {
+            _loadSemaphore.Release();
+        }
+    }
+
     private async Task<Microsoft.AI.Foundry.Local.IModel?> TryLoadChatModelAsync(Microsoft.AI.Foundry.Local.ICatalog catalog, string alias)
     {
         try

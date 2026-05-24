@@ -15,6 +15,7 @@ public class TrayIconViewModel : IAsyncDisposable
     private readonly IFileLogger _logger;
     private readonly IModelCatalogService _modelCatalog;
     private readonly IModelManager _modelManager;
+    private readonly ITextFormatter _textFormatter;
     private readonly IDialogService _dialogService;
     private AppConfig _config;
     private readonly EventHandler<AppConfig> _onConfigChanged;
@@ -40,6 +41,7 @@ public class TrayIconViewModel : IAsyncDisposable
         IFileLogger logger,
         IModelCatalogService modelCatalog,
         IModelManager modelManager,
+        ITextFormatter textFormatter,
         IDialogService dialogService)
     {
         _configService = configService;
@@ -50,6 +52,7 @@ public class TrayIconViewModel : IAsyncDisposable
         _logger = logger;
         _modelCatalog = modelCatalog;
         _modelManager = modelManager;
+        _textFormatter = textFormatter;
         _dialogService = dialogService;
         _config = configService.Load();
 
@@ -80,7 +83,8 @@ public class TrayIconViewModel : IAsyncDisposable
             _startupService,
             _logger,
             _modelCatalog,
-            _modelManager);
+            _modelManager,
+            _textFormatter);
 
         _config = _configService.Load();
 

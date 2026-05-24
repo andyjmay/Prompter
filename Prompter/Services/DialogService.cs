@@ -20,9 +20,9 @@ public class DialogService : IDialogService
         MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    public bool ShowSettingsDialog(IConfigService configService, IClipboardService clipboardService, IStartupService startupService, IFileLogger logger, IModelCatalogService modelCatalog, IModelManager modelManager)
+    public bool ShowSettingsDialog(IConfigService configService, IClipboardService clipboardService, IStartupService startupService, IFileLogger logger, IModelCatalogService modelCatalog, IModelManager modelManager, ITextFormatter textFormatter)
     {
-        var settings = new SettingsWindow(configService, clipboardService, startupService, logger, modelCatalog, modelManager);
+        var settings = new SettingsWindow(configService, clipboardService, startupService, logger, modelCatalog, modelManager, textFormatter);
         return settings.ShowDialog() == true;
     }
 

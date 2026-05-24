@@ -29,6 +29,8 @@ public partial class SettingsWindow : Window
     private ListSortDirection _activeSortDirection = ListSortDirection.Ascending;
     private RecordingOverlay? _previewOverlay;
     private PreviewToast? _previewToast;
+    private readonly ITextFormatter _textFormatter;
+    private CancellationTokenSource? _testCts;
 
     public SettingsWindow(
         IConfigService configService,
@@ -36,7 +38,8 @@ public partial class SettingsWindow : Window
         IStartupService startupService,
         IFileLogger logger,
         IModelCatalogService modelCatalog,
-        IModelManager modelManager)
+        IModelManager modelManager,
+        ITextFormatter textFormatter)
     {
         InitializeComponent();
         _configService = configService;
@@ -45,6 +48,7 @@ public partial class SettingsWindow : Window
         _logger = logger;
         _modelCatalog = modelCatalog;
         _modelManager = modelManager;
+        _textFormatter = textFormatter;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -727,6 +731,7 @@ public partial class SettingsWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
+        _testCts?.Cancel();
         _previewOverlay?.Close();
         _previewOverlay = null;
         _previewToast?.Close();
@@ -822,6 +827,70 @@ public partial class SettingsWindow : Window
 
                     column.Header = headerText;
                 }
+            }
+        }
+    }
+
+    private async void TestModelButton_Click(object sender, RoutedEventArgs e)
+    {
+        TestModelButton.IsEnabled = false;
+        TestResultTextBlock.Text = "Running...";
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        _testCts?.Dispose();
+        _testCts = new CancellationTokenSource();
+        var ct = _testCts.Token;
+
+        try
+        {
+            var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
+            var alias = selectedDisplay == ModelCatalog.OtherOption
+                ? CustomModelTextBox.Text.Trim()
+                : _displayNameToAlias.GetValueOrDefault(selectedDisplay, selectedDisplay);
+
+            if (string.IsNullOrWhiteSpace(alias))
+            {
+                TestResultTextBlock.Text = "Please select a chat model first.";
+                return;
+            }
+
+            TestResultTextBlock.Text = $"Loading {alias}...";
+            await _modelManager.EnsureChatModelLoadedAsync(alias);
+
+            var sample = TestSampleTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(sample))
+            {
+                sample = "The quik brown fox jumps over the lazzy dog.";
+                TestSampleTextBox.Text = sample;
+            }
+
+            TestResultTextBlock.Text = $"Testing {alias}...";
+            var result = await _textFormatter.CleanupAsync(sample, FormatMode.Standard, ct);
+            var elapsed = sw.Elapsed;
+
+            TestResultTextBlock.Text = $"Model: {alias}\nTime: {elapsed.TotalSeconds:F2}s\nOutput: {result}";
+        }
+        catch (OperationCanceledException)
+        {
+            TestResultTextBlock.Text = "Test cancelled.";
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogException(ex, "Model speed test failed");
+            TestResultTextBlock.Text = $"Error after {sw.Elapsed.TotalSeconds:F2}s: {ex.Message}";
+        }
+        finally
+        {
+            _testCts?.Dispose();
+            _testCts = null;
+            try
+            {
+                TestModelButton.IsEnabled = true;
+            }
+            catch (InvalidOperationException)
+            {
+                // Window may be closing; ignore.
             }
         }
     }
