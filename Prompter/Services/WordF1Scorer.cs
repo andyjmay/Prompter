@@ -1,4 +1,4 @@
-namespace Prompter.Eval.Scoring;
+namespace Prompter.Services;
 
 public static class WordF1Scorer
 {

@@ -68,6 +68,8 @@ public partial class ModelTestingWindow : Window
 
     private AppConfig _config;
     private readonly ObservableCollection<TestRunInfo> _history = new();
+    private readonly ObservableCollection<ChatModelCheckItem> _chatCheckListItems = new();
+    private readonly ObservableCollection<ComparisonGridItem> _comparisonResults = new();
     private string? _tempWavPath;
     private IRecordingSession? _recordingSession;
     private DispatcherTimer? _recordingTimer;
@@ -103,6 +105,8 @@ public partial class ModelTestingWindow : Window
 
         _config = _configService.Load();
         HistoryListView.ItemsSource = _history;
+        ChatModelsCheckList.ItemsSource = _chatCheckListItems;
+        ComparisonDataGrid.ItemsSource = _comparisonResults;
 
         Loaded += ModelTestingWindow_Loaded;
         Closed += ModelTestingWindow_Closed;
@@ -226,6 +230,23 @@ public partial class ModelTestingWindow : Window
             var cDisp = _chatDisplayNameToAlias.FirstOrDefault(x => x.Value == currentChat || Path.GetFileName(x.Value) == Path.GetFileName(currentChat)).Key;
             if (cDisp != null) ChatModelComboBox.SelectedItem = cDisp;
             else if (ChatModelComboBox.Items.Count > 0) ChatModelComboBox.SelectedIndex = 0;
+
+            // Populate checklist items
+            _chatCheckListItems.Clear();
+            foreach (var kv in _chatDisplayNameToAlias)
+            {
+                if (kv.Value == "none") continue;
+                bool isCustom = kv.Key.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
+                bool isCached = isCustom || await _modelCatalog.IsModelCachedAsync(kv.Value);
+                _chatCheckListItems.Add(new ChatModelCheckItem
+                {
+                    DisplayName = kv.Key,
+                    Alias = kv.Value,
+                    IsSelected = false,
+                    StatusText = isCached ? "Ready" : "Not downloaded",
+                    DownloadButtonVisibility = isCached ? Visibility.Collapsed : Visibility.Visible
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -332,6 +353,23 @@ public partial class ModelTestingWindow : Window
                     DownloadChatButton.Visibility = Visibility.Collapsed;
                 }
             }
+
+            // Update multi-select checklist items if matching
+            var checklistItem = _chatCheckListItems.FirstOrDefault(x => x.Alias == alias);
+            if (checklistItem != null)
+            {
+                if (progress >= 100)
+                {
+                    checklistItem.StatusText = "Ready";
+                    checklistItem.DownloadButtonVisibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    checklistItem.StatusText = $"Downloading... {progress:F0}%";
+                    checklistItem.DownloadButtonVisibility = Visibility.Collapsed;
+                }
+            }
+
             UpdateWizardSteps();
         });
     }
@@ -413,6 +451,7 @@ public partial class ModelTestingWindow : Window
     private void StartRecording()
     {
         CleanupTempFile();
+        ExportAudioButton.IsEnabled = false;
 
         try
         {
@@ -483,6 +522,10 @@ public partial class ModelTestingWindow : Window
             : "Recording failed. Click to try again.";
         RecordingTimerText.Visibility = Visibility.Collapsed;
         AudioLevelBar.Visibility = Visibility.Collapsed;
+        if (success && !string.IsNullOrEmpty(_tempWavPath))
+        {
+            ExportAudioButton.IsEnabled = true;
+        }
         UpdateWizardSteps();
     }
 
@@ -503,6 +546,215 @@ public partial class ModelTestingWindow : Window
             }
         }
 
+        // Multi-Model comparison execution flow
+        if (CompareMultipleCheckBox.IsChecked == true)
+        {
+            var selectedModels = _chatCheckListItems.Where(item => item.IsSelected).ToList();
+            if (selectedModels.Count == 0)
+            {
+                MessageBox.Show("Please select at least one correction model to compare.", "Sandbox Pipeline", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            RunPipelineButton.IsEnabled = false;
+            RunPipelineButton.Content = "⏳ Running Comparison Batch...";
+            RawOutputTextBox.Text = "Running transcription...";
+            FormattedOutputTextBox.Text = "Processing comparison batch...";
+            _comparisonResults.Clear();
+
+            _pipelineCts?.Cancel();
+            _pipelineCts?.Dispose();
+            _pipelineCts = new CancellationTokenSource();
+            var ct = _pipelineCts.Token;
+
+            try
+            {
+                var whisperSel = WhisperModelComboBox.SelectedItem as string;
+                if (string.IsNullOrEmpty(whisperSel))
+                {
+                    throw new InvalidOperationException("Please select a speech model first.");
+                }
+
+                var whisperAlias = _whisperDisplayNameToAlias.TryGetValue(whisperSel, out var wv) ? wv : whisperSel;
+                bool whisperIsCustom = whisperSel.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
+
+                var selectedModeName = ModeComboBox.SelectedItem as string ?? "Standard";
+                var baseMode = _config.Modes.FirstOrDefault(m => m.Name.Equals(selectedModeName, StringComparison.OrdinalIgnoreCase)) ?? ModeDefaults.Standard;
+
+                double whisperLoadSec = 0;
+                double whisperRunSec = 0;
+                string rawText = "";
+
+                if (isAudio)
+                {
+                    var whisperLoadSw = Stopwatch.StartNew();
+                    if (!_modelManager.WhisperReady || _modelManager.LoadedWhisperModelAlias != Path.GetFileName(whisperAlias))
+                    {
+                        RawOutputTextBox.Text = $"Loading Speech model ({whisperSel})...";
+                        await _modelManager.UnloadWhisperModelAsync();
+                    }
+                    await _modelManager.EnsureModelsLoadedAsync(baseMode.Id);
+                    whisperLoadSw.Stop();
+                    whisperLoadSec = whisperLoadSw.Elapsed.TotalSeconds;
+
+                    RawOutputTextBox.Text = "Transcribing recorded audio...";
+                    var whisperRunSw = Stopwatch.StartNew();
+                    rawText = await _transcriptionService.TranscribeAsync(_tempWavPath!, _config.Language, ct);
+                    whisperRunSw.Stop();
+                    whisperRunSec = whisperRunSw.Elapsed.TotalSeconds;
+                    
+                    rawText = rawText.Trim();
+                    RawOutputTextBox.Text = rawText;
+                }
+                else
+                {
+                    rawText = ManualInputTextBox.Text.Trim();
+                    RawOutputTextBox.Text = rawText;
+                }
+
+                if (string.IsNullOrWhiteSpace(rawText))
+                {
+                    throw new InvalidOperationException("Transcription was empty. Please check your mic/input.");
+                }
+
+                var tempConfig = _configService.Load();
+                if (tempConfig.DictionaryEntries.Count > 0)
+                {
+                    rawText = PersonalDictionaryProcessor.Process(rawText, tempConfig.DictionaryEntries, _logger);
+                }
+                if (tempConfig.SpokenPunctuationEnabled)
+                {
+                    rawText = SpokenPunctuationProcessor.Process(rawText, tempConfig.Language, _logger);
+                }
+
+                string baselineText = string.IsNullOrWhiteSpace(ReferenceInputTextBox.Text) ? rawText : ReferenceInputTextBox.Text.Trim();
+
+                foreach (var modelItem in selectedModels)
+                {
+                    var chatSel = modelItem.DisplayName;
+                    var chatAlias = modelItem.Alias;
+                    bool chatIsCustom = chatSel.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
+
+                    // Auto-download if uncached, showing status, but EXCLUDING download time from benchmark timings
+                    bool isCached = chatAlias == "none" || chatIsCustom || await _modelCatalog.IsModelCachedAsync(chatAlias);
+                    if (!isCached)
+                    {
+                        modelItem.StatusText = "Downloading...";
+                        await _modelManager.DownloadModelAsync(chatAlias);
+                        modelItem.StatusText = "Ready";
+                    }
+
+                    var testModes = _config.Modes.ToList();
+                    var modeIdx = testModes.FindIndex(m => m.Id.Equals(baseMode.Id, StringComparison.OrdinalIgnoreCase));
+                    var testMode = baseMode with { SystemPrompt = SystemPromptTextBox.Text };
+                    if (modeIdx >= 0) testModes[modeIdx] = testMode;
+                    else testModes.Add(testMode);
+
+                    var stepConfig = _configService.Load() with
+                    {
+                        UseCustomWhisper = whisperIsCustom,
+                        CustomWhisperModelPath = whisperIsCustom ? whisperAlias : "",
+                        WhisperModelId = whisperIsCustom ? "" : whisperAlias,
+                        
+                        UseCustomChat = chatIsCustom,
+                        CustomChatModelPath = chatIsCustom ? chatAlias : "",
+                        ChatModelId = chatIsCustom ? "" : chatAlias,
+
+                        CleanEnabled = CleanCheckBox.IsChecked == true,
+                        ListFormattingEnabled = ListCheckBox.IsChecked == true,
+                        SpokenPunctuationEnabled = PunctuationCheckBox.IsChecked == true,
+                        Modes = testModes
+                    };
+
+                    using (_configService.PushTemporaryConfig(stepConfig))
+                    {
+                        double chatLoadSec = 0;
+                        double chatRunSec = 0;
+                        string formattedText = "";
+
+                        var chatLoadSw = Stopwatch.StartNew();
+                        if (chatAlias == "none")
+                        {
+                            chatLoadSec = 0;
+                        }
+                        else if (chatIsCustom)
+                        {
+                            if (!_modelManager.ChatReady || _modelManager.LoadedChatModelAlias != Path.GetFileName(chatAlias))
+                            {
+                                await _modelManager.EnsureChatModelLoadedAsync(chatAlias);
+                            }
+                        }
+                        else
+                        {
+                            if (!_modelManager.ChatReady || _modelManager.LoadedChatModelAlias != chatAlias)
+                            {
+                                await _modelManager.EnsureChatModelLoadedAsync(chatAlias);
+                            }
+                        }
+                        chatLoadSw.Stop();
+                        chatLoadSec = chatLoadSw.Elapsed.TotalSeconds;
+
+                        if (chatAlias == "none")
+                        {
+                            formattedText = rawText;
+                            chatRunSec = 0;
+                        }
+                        else
+                        {
+                            var chatRunSw = Stopwatch.StartNew();
+                            formattedText = await _textFormatter.CleanupAsync(rawText, baseMode.Id, ct);
+                            chatRunSw.Stop();
+                            chatRunSec = chatRunSw.Elapsed.TotalSeconds;
+                        }
+
+                        double totalSec = whisperLoadSec + whisperRunSec + chatLoadSec + chatRunSec;
+                        double charsPerSec = chatRunSec > 0 ? formattedText.Length / chatRunSec : 0;
+                        double similarity = WordF1Scorer.Score(formattedText, baselineText) * 100.0;
+
+                        _comparisonResults.Add(new ComparisonGridItem
+                        {
+                            ModelName = chatSel.Replace("Custom: ", ""),
+                            Alias = chatAlias,
+                            LoadSec = chatLoadSec,
+                            RunSec = chatRunSec,
+                            TotalSec = totalSec,
+                            Speed = charsPerSec,
+                            Similarity = similarity,
+                            FormattedText = formattedText,
+                            RawText = rawText,
+                            WhisperLoadSec = whisperLoadSec,
+                            WhisperRunSec = whisperRunSec,
+                            SystemPrompt = SystemPromptTextBox.Text,
+                            ModeId = baseMode.Id
+                        });
+
+                        await _modelManager.UnloadChatModelAsync();
+                    }
+                }
+
+                BatchComparisonTab.IsSelected = true;
+                FormattedOutputTextBox.Text = "Comparison batch completed. Select a row to preview.";
+                UpdateWizardSteps();
+            }
+            catch (OperationCanceledException)
+            {
+                FormattedOutputTextBox.Text = "Cancelled";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Comparison run failed");
+                FormattedOutputTextBox.Text = $"Error: {ex.Message}";
+                MessageBox.Show($"Pipeline execution failed:\n{ex.Message}", "Sandbox Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                RunPipelineButton.IsEnabled = true;
+                RunPipelineButton.Content = "🚀 Run Test Sandbox";
+            }
+
+            return;
+        }
+
         // UI feedback
         RunPipelineButton.IsEnabled = false;
         RunPipelineButton.Content = "⏳ Processing Sandbox Run...";
@@ -513,14 +765,14 @@ public partial class ModelTestingWindow : Window
         _pipelineCts?.Cancel();
         _pipelineCts?.Dispose();
         _pipelineCts = new CancellationTokenSource();
-        var ct = _pipelineCts.Token;
+        var ctSingle = _pipelineCts.Token;
 
         // Track detailed timings
-        double whisperLoadSec = 0;
-        double whisperRunSec = 0;
-        double chatLoadSec = 0;
-        double chatRunSec = 0;
-        double totalSec = 0;
+        double whisperLoadSecSingle = 0;
+        double whisperRunSecSingle = 0;
+        double chatLoadSecSingle = 0;
+        double chatRunSecSingle = 0;
+        double totalSecSingle = 0;
 
         var overallSw = Stopwatch.StartNew();
 
@@ -584,7 +836,7 @@ public partial class ModelTestingWindow : Window
                 }
                 await _modelManager.EnsureModelsLoadedAsync(baseMode.Id);
                 whisperLoadSw.Stop();
-                whisperLoadSec = whisperLoadSw.Elapsed.TotalSeconds;
+                whisperLoadSecSingle = whisperLoadSw.Elapsed.TotalSeconds;
 
                 // Input determination
                 string rawText;
@@ -593,9 +845,9 @@ public partial class ModelTestingWindow : Window
                     // Timing: Transcription run
                     RawOutputTextBox.Text = "Transcribing recorded audio...";
                     var whisperRunSw = Stopwatch.StartNew();
-                    rawText = await _transcriptionService.TranscribeAsync(_tempWavPath!, tempConfig.Language, ct);
+                    rawText = await _transcriptionService.TranscribeAsync(_tempWavPath!, tempConfig.Language, ctSingle);
                     whisperRunSw.Stop();
-                    whisperRunSec = whisperRunSw.Elapsed.TotalSeconds;
+                    whisperRunSecSingle = whisperRunSw.Elapsed.TotalSeconds;
                     
                     rawText = rawText.Trim();
                     RawOutputTextBox.Text = rawText;
@@ -604,8 +856,8 @@ public partial class ModelTestingWindow : Window
                 {
                     rawText = ManualInputTextBox.Text.Trim();
                     RawOutputTextBox.Text = rawText;
-                    whisperLoadSec = 0; // bypassed
-                    whisperRunSec = 0;
+                    whisperLoadSecSingle = 0; // bypassed
+                    whisperRunSecSingle = 0;
                 }
 
                 if (string.IsNullOrWhiteSpace(rawText))
@@ -627,8 +879,8 @@ public partial class ModelTestingWindow : Window
                 var chatLoadSw = Stopwatch.StartNew();
                 if (chatAlias == "none")
                 {
-                    chatLoadSec = 0;
-                    chatRunSec = 0;
+                    chatLoadSecSingle = 0;
+                    chatRunSecSingle = 0;
                 }
                 else if (chatIsCustom)
                 {
@@ -649,7 +901,7 @@ public partial class ModelTestingWindow : Window
                 if (chatAlias != "none")
                 {
                     chatLoadSw.Stop();
-                    chatLoadSec = chatLoadSw.Elapsed.TotalSeconds;
+                    chatLoadSecSingle = chatLoadSw.Elapsed.TotalSeconds;
                 }
 
                 // Timing: Formatting run
@@ -662,31 +914,31 @@ public partial class ModelTestingWindow : Window
                 {
                     FormattedOutputTextBox.Text = "Formatting text with Chat model...";
                     var chatRunSw = Stopwatch.StartNew();
-                    formattedText = await _textFormatter.CleanupAsync(rawText, baseMode.Id, ct);
+                    formattedText = await _textFormatter.CleanupAsync(rawText, baseMode.Id, ctSingle);
                     chatRunSw.Stop();
-                    chatRunSec = chatRunSw.Elapsed.TotalSeconds;
+                    chatRunSecSingle = chatRunSw.Elapsed.TotalSeconds;
                 }
 
                 FormattedOutputTextBox.Text = formattedText;
                 overallSw.Stop();
-                totalSec = overallSw.Elapsed.TotalSeconds;
+                totalSecSingle = overallSw.Elapsed.TotalSeconds;
 
                 // Render metrics visualizers
-                RenderTimeline(whisperLoadSec, whisperRunSec, chatLoadSec, chatRunSec, totalSec);
+                RenderTimeline(whisperLoadSecSingle, whisperRunSecSingle, chatLoadSecSingle, chatRunSecSingle, totalSecSingle);
                 
                 // Speed calculations
                 int wordCount = rawText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-                double wordsPerSec = whisperRunSec > 0 ? wordCount / whisperRunSec : 0;
-                double charPerSec = chatRunSec > 0 ? formattedText.Length / chatRunSec : 0;
+                double wordsPerSec = whisperRunSecSingle > 0 ? wordCount / whisperRunSecSingle : 0;
+                double charPerSec = chatRunSecSingle > 0 ? formattedText.Length / chatRunSecSingle : 0;
 
-                WhisperTimingsText.Text = isAudio ? $"{whisperRunSec:F2}s ({wordsPerSec:F1} words/s)" : "Bypassed (Manual Text)";
-                WhisperLoadText.Text = isAudio ? $" [Load: {whisperLoadSec:F2}s]" : "";
-                WhisperLoadText.Visibility = isAudio && whisperLoadSec > 0.05 ? Visibility.Visible : Visibility.Collapsed;
+                WhisperTimingsText.Text = isAudio ? $"{whisperRunSecSingle:F2}s ({wordsPerSec:F1} words/s)" : "Bypassed (Manual Text)";
+                WhisperLoadText.Text = isAudio ? $" [Load: {whisperLoadSecSingle:F2}s]" : "";
+                WhisperLoadText.Visibility = isAudio && whisperLoadSecSingle > 0.05 ? Visibility.Visible : Visibility.Collapsed;
 
-                ChatTimingsText.Text = $"{chatRunSec:F2}s ({charPerSec:F1} char/s)";
-                ChatLoadText.Text = $" [Load: {chatLoadSec:F2}s]";
-                ChatLoadText.Visibility = chatLoadSec > 0.05 ? Visibility.Visible : Visibility.Collapsed;
-                TotalTimingsText.Text = $"{totalSec:F2}s";
+                ChatTimingsText.Text = $"{chatRunSecSingle:F2}s ({charPerSec:F1} char/s)";
+                ChatLoadText.Text = $" [Load: {chatLoadSecSingle:F2}s]";
+                ChatLoadText.Visibility = chatLoadSecSingle > 0.05 ? Visibility.Visible : Visibility.Collapsed;
+                TotalTimingsText.Text = $"{totalSecSingle:F2}s";
 
                 // Add to history
                 _runCounter++;
@@ -694,7 +946,7 @@ public partial class ModelTestingWindow : Window
                 {
                     Label = $"Run {_runCounter} ({(isAudio ? "Mic" : "Text")})",
                     ConfigSummary = $"{whisperSel.Replace("Custom: ", "")} / {chatSel.Replace("Custom: ", "")} ({selectedModeName})",
-                    SpeedLabel = $"{totalSec:F1}s",
+                    SpeedLabel = $"{totalSecSingle:F1}s",
                     PreviewText = formattedText,
                     
                     RawText = rawText,
@@ -704,17 +956,25 @@ public partial class ModelTestingWindow : Window
                     ModeId = baseMode.Id,
                     SystemPrompt = SystemPromptTextBox.Text,
                     
-                    WhisperLoadSec = whisperLoadSec,
-                    WhisperRunSec = whisperRunSec,
-                    ChatLoadSec = chatLoadSec,
-                    ChatRunSec = chatRunSec,
-                    TotalSec = totalSec,
+                    WhisperLoadSec = whisperLoadSecSingle,
+                    WhisperRunSec = whisperRunSecSingle,
+                    ChatLoadSec = chatLoadSecSingle,
+                    ChatRunSec = chatRunSecSingle,
+                    TotalSec = totalSecSingle,
                     WordsPerSecond = wordsPerSec,
                     CharactersPerSecond = charPerSec
                 };
 
                 _history.Insert(0, run);
                 HistoryListView.SelectedItem = run;
+
+                // Select details tab
+                var borderParent = Step4Card;
+                if (borderParent != null && borderParent.Child is TabControl tabControl && tabControl.Items.Count > 0)
+                {
+                    ((TabItem)tabControl.Items[0]).IsSelected = true;
+                }
+
                 UpdateWizardSteps();
             }
         }
@@ -930,13 +1190,27 @@ public partial class ModelTestingWindow : Window
         var unfinishedLineBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF444444")!;
 
         // 1. Evaluate Step 1: Select AI Models
-        bool step1Done = WhisperModelComboBox.SelectedItem != null && ChatModelComboBox.SelectedItem != null;
+        bool step1Done = WhisperModelComboBox.SelectedItem != null;
         if (step1Done)
         {
+            if (CompareMultipleCheckBox.IsChecked == true)
+            {
+                step1Done = _chatCheckListItems.Any(item => item.IsSelected);
+            }
+            else
+            {
+                step1Done = ChatModelComboBox.SelectedItem != null;
+                if (step1Done)
+                {
+                    var chatStatus = ChatModelStatus.Text ?? "";
+                    if (chatStatus.Contains("Downloading") || chatStatus.Contains("Not cached"))
+                    {
+                        step1Done = false;
+                    }
+                }
+            }
             var whisperStatus = WhisperModelStatus.Text ?? "";
-            var chatStatus = ChatModelStatus.Text ?? "";
-            if (whisperStatus.Contains("Downloading") || whisperStatus.Contains("Not cached") ||
-                chatStatus.Contains("Downloading") || chatStatus.Contains("Not cached"))
+            if (whisperStatus.Contains("Downloading") || whisperStatus.Contains("Not cached"))
             {
                 step1Done = false;
             }
@@ -1070,5 +1344,182 @@ public partial class ModelTestingWindow : Window
             Step4PanelBadge.Background = inactiveBadgeBg;
         }
     }
+
+    private void CompareMultipleCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        bool isMulti = CompareMultipleCheckBox.IsChecked == true;
+        SingleModelSelectionPanel.Visibility = isMulti ? Visibility.Collapsed : Visibility.Visible;
+        MultiModelSelectionPanel.Visibility = isMulti ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWizardSteps();
+    }
+
+    private void ChatModelCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        UpdateWizardSteps();
+    }
+
+    private async void DownloadModelInCheckList_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is ChatModelCheckItem item)
+        {
+            btn.IsEnabled = false;
+            item.StatusText = "Downloading...";
+            try
+            {
+                await _modelManager.DownloadModelAsync(item.Alias);
+                item.StatusText = "Ready";
+                item.DownloadButtonVisibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, $"Failed to download model {item.Alias} in checklist");
+                item.StatusText = "Failed";
+                btn.IsEnabled = true;
+            }
+            UpdateWizardSteps();
+        }
+    }
+
+    private void LoadAudioButton_Click(object sender, RoutedEventArgs e)
+    {
+        var openFileDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "WAV Audio Files (*.wav)|*.wav",
+            Title = "Load Pre-recorded Audio File"
+        };
+        if (openFileDialog.ShowDialog() == true)
+        {
+            CleanupTempFile();
+            _tempWavPath = openFileDialog.FileName;
+            
+            RecordStatusText.Text = $"Loaded audio file: {Path.GetFileName(_tempWavPath)}";
+            ExportAudioButton.IsEnabled = true;
+            UpdateWizardSteps();
+        }
+    }
+
+    private void ExportAudioButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_tempWavPath) || !File.Exists(_tempWavPath))
+        {
+            MessageBox.Show("No audio recorded or loaded to export.", "Export Audio", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "WAV Audio Files (*.wav)|*.wav",
+            FileName = "recorded-audio.wav",
+            Title = "Export Audio File"
+        };
+        if (saveFileDialog.ShowDialog() == true)
+        {
+            try
+            {
+                File.Copy(_tempWavPath, saveFileDialog.FileName, overwrite: true);
+                MessageBox.Show("Audio exported successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "Failed to export audio file");
+                MessageBox.Show($"Failed to export audio: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private void ViewDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.DataContext is ComparisonGridItem item)
+        {
+            RawOutputTextBox.Text = item.RawText;
+            FormattedOutputTextBox.Text = item.FormattedText;
+            SystemPromptTextBox.Text = item.SystemPrompt;
+
+            var wDisp = _whisperDisplayNameToAlias.FirstOrDefault(x => x.Value == item.Alias || Path.GetFileName(x.Value) == Path.GetFileName(item.Alias)).Key;
+            if (wDisp != null) WhisperModelComboBox.SelectedItem = wDisp;
+
+            var cDisp = _chatDisplayNameToAlias.FirstOrDefault(x => x.Value == item.Alias || Path.GetFileName(x.Value) == Path.GetFileName(item.Alias)).Key;
+            if (cDisp != null) ChatModelComboBox.SelectedItem = cDisp;
+
+            var mode = _config.Modes.FirstOrDefault(m => m.Id.Equals(item.ModeId, StringComparison.OrdinalIgnoreCase));
+            if (mode != null) ModeComboBox.SelectedItem = mode.Name;
+
+            RenderTimeline(item.WhisperLoadSec, item.WhisperRunSec, item.LoadSec, item.RunSec, item.TotalSec);
+
+            double wordCount = item.RawText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+            double wordsPerSec = item.WhisperRunSec > 0 ? wordCount / item.WhisperRunSec : 0;
+
+            WhisperTimingsText.Text = item.WhisperRunSec > 0 ? $"{item.WhisperRunSec:F2}s ({wordsPerSec:F1} words/s)" : "Bypassed (Manual Text)";
+            WhisperLoadText.Text = $" [Load: {item.WhisperLoadSec:F2}s]";
+            WhisperLoadText.Visibility = item.WhisperLoadSec > 0.05 ? Visibility.Visible : Visibility.Collapsed;
+
+            ChatTimingsText.Text = $"{item.RunSec:F2}s ({item.Speed:F1} char/s)";
+            ChatLoadText.Text = $" [Load: {item.LoadSec:F2}s]";
+            ChatLoadText.Visibility = item.LoadSec > 0.05 ? Visibility.Visible : Visibility.Collapsed;
+            TotalTimingsText.Text = $"{item.TotalSec:F2}s";
+
+            // Switch to Single Run Details tab
+            var borderParent = Step4Card;
+            if (borderParent != null && borderParent.Child is TabControl tabControl && tabControl.Items.Count > 0)
+            {
+                ((TabItem)tabControl.Items[0]).IsSelected = true;
+            }
+        }
+    }
+}
+
+public class ChatModelCheckItem : System.ComponentModel.INotifyPropertyChanged
+{
+    private bool _isSelected;
+    private string _statusText = "";
+    private Visibility _downloadButtonVisibility = Visibility.Collapsed;
+
+    public string DisplayName { get; set; } = "";
+    public string Alias { get; set; } = "";
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { _isSelected = value; OnPropertyChanged(nameof(IsSelected)); }
+    }
+
+    public string StatusText
+    {
+        get => _statusText;
+        set { _statusText = value; OnPropertyChanged(nameof(StatusText)); }
+    }
+
+    public Visibility DownloadButtonVisibility
+    {
+        get => _downloadButtonVisibility;
+        set { _downloadButtonVisibility = value; OnPropertyChanged(nameof(DownloadButtonVisibility)); }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+}
+
+public class ComparisonGridItem
+{
+    public string ModelName { get; set; } = "";
+    public string Alias { get; set; } = "";
+    public double LoadSec { get; set; }
+    public double RunSec { get; set; }
+    public double TotalSec { get; set; }
+    public double Speed { get; set; }
+    public double Similarity { get; set; }
+    public string FormattedText { get; set; } = "";
+    public string RawText { get; set; } = "";
+    public double WhisperLoadSec { get; set; }
+    public double WhisperRunSec { get; set; }
+    public string SystemPrompt { get; set; } = "";
+    public string ModeId { get; set; } = "";
+
+    public string LoadSecLabel => LoadSec > 0 ? $"{LoadSec:F2}s" : "0.00s";
+    public string RunSecLabel => RunSec > 0 ? $"{RunSec:F2}s" : "0.00s";
+    public string TotalSecLabel => TotalSec > 0 ? $"{TotalSec:F2}s" : "0.00s";
+    public string SpeedLabel => Speed > 0 ? $"{Speed:F1} c/s" : "N/A";
+    public string SimilarityLabel => $"{Similarity:F1}%";
 }
 

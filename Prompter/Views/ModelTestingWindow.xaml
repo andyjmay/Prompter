@@ -17,15 +17,19 @@
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <!-- Column 0: History Sidebar -->
-            <ColumnDefinition Width="280"/>
-            <!-- Column 1: Config & Input Panel -->
-            <ColumnDefinition Width="1*"/>
-            <!-- Column 2: Outputs & Performance -->
-            <ColumnDefinition Width="1.2*"/>
+            <ColumnDefinition Width="280" MinWidth="200"/>
+            <!-- Column 1: Splitter 1 -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Column 2: Config & Input Panel -->
+            <ColumnDefinition Width="1*" MinWidth="300"/>
+            <!-- Column 3: Splitter 2 -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Column 4: Outputs & Performance -->
+            <ColumnDefinition Width="1.2*" MinWidth="350"/>
         </Grid.ColumnDefinitions>
 
         <!-- TOP HEADER: Wizard Stepper Progress -->
-        <Border Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Background="{DynamicResource SidebarBackgroundBrush}" BorderBrush="{DynamicResource SidebarBorderBrush}" BorderThickness="0,0,0,1" Padding="16,12" Margin="0,0,0,4">
+        <Border Grid.Row="0" Grid.Column="2" Grid.ColumnSpan="3" Background="{DynamicResource SidebarBackgroundBrush}" BorderBrush="{DynamicResource SidebarBorderBrush}" BorderThickness="0,0,0,1" Padding="16,12" Margin="0,0,0,4">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -90,6 +94,39 @@
                 </StackPanel>
 
                 <ListView x:Name="HistoryListView" Grid.Row="1" Background="Transparent" BorderThickness="0" Margin="0,0,0,12" SelectionMode="Single" SelectionChanged="HistoryListView_SelectionChanged">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Padding" Value="8"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border x:Name="border"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="#FF252525"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#FF222222"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                <Setter TargetName="border" Property="BorderBrush" Value="#FF00BFFF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <Grid HorizontalAlignment="Stretch">
@@ -124,12 +161,16 @@
             </Grid>
         </Border>
 
+        <!-- Splitter between History and Center -->
+        <GridSplitter Grid.Row="1" Grid.Column="1" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#FF333333" Margin="0,16"/>
+
         <!-- CENTER PANEL: Config & Inputs (Steps 1, 2, 3) -->
-        <Grid Grid.Row="1" Grid.Column="1" Margin="16">
+        <Grid Grid.Row="1" Grid.Column="2" Margin="16">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/> <!-- Step 1 Card -->
-                <RowDefinition Height="*"/>    <!-- Step 2 Card -->
-                <RowDefinition Height="Auto"/> <!-- Step 3 Card -->
+                <RowDefinition Height="Auto" MinHeight="140"/> <!-- Step 1 Card -->
+                <RowDefinition Height="Auto"/>                <!-- Row Splitter 1 -->
+                <RowDefinition Height="*" MinHeight="250"/>   <!-- Step 2 Card -->
+                <RowDefinition Height="Auto"/>                <!-- Step 3 Card -->
             </Grid.RowDefinitions>
 
             <!-- Step 1: Select AI Models -->
@@ -164,34 +205,71 @@
                     </Grid>
 
                     <!-- Text Correction Model -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Correction Model:" VerticalAlignment="Center" FontWeight="SemiBold" Width="100"/>
-                        <StackPanel Grid.Column="1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="ChatModelComboBox" SelectionChanged="ChatModelComboBox_SelectionChanged"/>
-                                <Button x:Name="DownloadChatButton" Grid.Column="1" Content="Download" Click="DownloadChatButton_Click" Margin="8,0,0,0" Padding="8,4" Visibility="Collapsed"/>
-                            </Grid>
-                            <TextBlock x:Name="ChatModelStatus" FontSize="10" Foreground="#FF888888" Margin="0,4,0,0"/>
-                            <ProgressBar x:Name="ChatProgressBar" Height="4" Margin="0,4,0,0" Visibility="Collapsed" Foreground="#FF00BFFF" Background="#FF333333"/>
-                        </StackPanel>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Correction Model:" VerticalAlignment="Center" FontWeight="SemiBold" Width="100"/>
+                            <CheckBox x:Name="CompareMultipleCheckBox" Grid.Column="1" Content="Compare Multiple Models" Foreground="White" VerticalAlignment="Center" Margin="0,0,0,0" Checked="CompareMultipleCheckBox_Changed" Unchecked="CompareMultipleCheckBox_Changed"/>
+                        </Grid>
+
+                        <Grid Grid.Row="1">
+                            <!-- Single Model Selection -->
+                            <StackPanel x:Name="SingleModelSelectionPanel">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="ChatModelComboBox" SelectionChanged="ChatModelComboBox_SelectionChanged"/>
+                                    <Button x:Name="DownloadChatButton" Grid.Column="1" Content="Download" Click="DownloadChatButton_Click" Margin="8,0,0,0" Padding="8,4" Visibility="Collapsed"/>
+                                </Grid>
+                                <TextBlock x:Name="ChatModelStatus" FontSize="10" Foreground="#FF888888" Margin="0,4,0,0"/>
+                                <ProgressBar x:Name="ChatProgressBar" Height="4" Margin="0,4,0,0" Visibility="Collapsed" Foreground="#FF00BFFF" Background="#FF333333"/>
+                            </StackPanel>
+
+                            <!-- Multiple Models Checklist -->
+                            <StackPanel x:Name="MultiModelSelectionPanel" Visibility="Collapsed">
+                                <TextBlock Text="Select correction models to compare:" FontSize="10" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <ListBox x:Name="ChatModelsCheckList" Background="#FF1E1E1E" BorderBrush="#FF444444" BorderThickness="1" MinHeight="180" MaxHeight="320" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox IsChecked="{Binding IsSelected}" Checked="ChatModelCheck_Changed" Unchecked="ChatModelCheck_Changed" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="White" VerticalAlignment="Center"/>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                                                    <TextBlock Text="{Binding StatusText}" FontSize="10" Foreground="#FF888888" VerticalAlignment="Center"/>
+                                                    <Button Content="Download" Click="DownloadModelInCheckList_Click" Margin="6,0,0,0" Padding="4,2" FontSize="9" Visibility="{Binding DownloadButtonVisibility}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </StackPanel>
             </Border>
 
             <!-- Step 2: Provide Test Input -->
-            <Border x:Name="Step2Card" Grid.Row="1" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12" Opacity="0.5">
+            <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center" Background="#FF333333" Margin="0,0,0,12"/>
+            <Border x:Name="Step2Card" Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12" Opacity="0.5">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
@@ -233,6 +311,12 @@
                                     
                                     <!-- Level meter -->
                                     <ProgressBar x:Name="AudioLevelBar" Width="180" Height="6" Value="0" Minimum="0" Maximum="100" Foreground="#FF30D158" Background="#FF333333" BorderBrush="Transparent" Margin="0,8,0,0" Visibility="Collapsed"/>
+
+                                    <!-- Load and Export File utilities -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                        <Button x:Name="LoadAudioButton" Content="📁 Load WAV" Click="LoadAudioButton_Click" Margin="0,0,8,0" Padding="8,4" Background="#FF2D2D2D" Foreground="White"/>
+                                        <Button x:Name="ExportAudioButton" Content="💾 Export Audio" Click="ExportAudioButton_Click" IsEnabled="False" Padding="8,4" Background="#FF2D2D2D" Foreground="White"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </TabItem>
@@ -249,11 +333,21 @@
                             </Grid>
                         </TabItem>
                     </TabControl>
+
+                    <!-- Target Reference Text for F1 computation -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Target Reference Text (Optional Ground Truth):" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
+                        <TextBox x:Name="ReferenceInputTextBox" Grid.Row="1" Height="40" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontSize="11"/>
+                    </Grid>
                 </Grid>
             </Border>
 
             <!-- Step 3: Configure & Run Sandbox -->
-            <Border x:Name="Step3Card" Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12" Opacity="0.5">
+            <Border x:Name="Step3Card" Grid.Row="3" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12" Opacity="0.5">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                         <Border x:Name="Step3PanelBadge" Width="18" Height="18" CornerRadius="9" Background="#FF2D2D2D" Margin="0,0,8,0">
@@ -272,9 +366,9 @@
                     </Grid>
 
                     <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <CheckBox x:Name="CleanCheckBox" Content="Clean (Filler words)" Margin="0,0,16,6"/>
-                        <CheckBox x:Name="ListCheckBox" Content="Format Lists" Margin="0,0,16,6"/>
-                        <CheckBox x:Name="PunctuationCheckBox" Content="Spoken Punctuation" Margin="0,0,0,6"/>
+                        <CheckBox x:Name="CleanCheckBox" Content="Clean (Filler words)" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="ListCheckBox" Content="Format Lists" IsChecked="True" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="PunctuationCheckBox" Content="Spoken Punctuation" IsChecked="True" Margin="0,0,0,6"/>
                     </WrapPanel>
 
                     <Button x:Name="RunPipelineButton" Content="🚀 Run Test Sandbox" Click="RunPipelineButton_Click" Background="#FF2D2D2D" Foreground="White" FontSize="14" Padding="16,10" HorizontalAlignment="Stretch"/>
@@ -282,15 +376,15 @@
             </Border>
         </Grid>
 
-        <!-- RIGHT PANEL: Outputs & Visual timing (Step 4) -->
-        <Border Grid.Row="1" Grid.Column="2" x:Name="Step4Card" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="16" Opacity="0.5">
+        <!-- Splitter between Center and Right -->
+        <GridSplitter Grid.Row="1" Grid.Column="3" Width="4" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="#FF333333" Margin="0,16"/>
+
+         <!-- RIGHT PANEL: Outputs & Visual timing (Step 4) -->
+        <Border Grid.Row="1" Grid.Column="4" x:Name="Step4Card" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="16" Opacity="0.5">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/> <!-- Step Header -->
-                    <RowDefinition Height="Auto"/> <!-- Raw Output Box -->
-                    <RowDefinition Height="2*"/>   <!-- Formatted Output Box -->
-                    <RowDefinition Height="1*"/>   <!-- Editable System Prompt -->
-                    <RowDefinition Height="Auto"/> <!-- Visual timing metrics -->
+                    <RowDefinition Height="*"/>    <!-- TabControl -->
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
@@ -301,95 +395,158 @@
                     <TextBlock Text="Step 4: Analyze Results &amp; Save Prompt" FontWeight="Bold" Foreground="White" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Raw Output Box -->
-                <Grid Grid.Row="1" Margin="0,0,0,12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Raw Transcription" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
-                    <TextBox x:Name="RawOutputTextBox" Grid.Row="1" IsReadOnly="True" Height="70" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
-                </Grid>
-
-                <!-- Formatted Output Box -->
-                <Grid Grid.Row="2" Margin="0,0,0,12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Formatted Output" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
-                    <TextBox x:Name="FormattedOutputTextBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
-                </Grid>
-
-                <!-- Custom system prompt editor -->
-                <Grid Grid.Row="3" Margin="0,0,0,12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Custom Mode System Prompt" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
-                    <TextBox x:Name="SystemPromptTextBox" Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
-                    <Button x:Name="ApplyToModeButton" Grid.Row="2" Content="Apply edited prompt and options to Mode" Click="ApplyToModeButton_Click" Padding="8,4" FontSize="11" Margin="0,6,0,0" HorizontalAlignment="Right"/>
-                </Grid>
-
-                <!-- Performance timing bars -->
-                <Border Grid.Row="4" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12">
-                    <StackPanel>
-                        <TextBlock Text="PERFORMANCE TIMELINE" FontWeight="Bold" Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
-                        
-                        <!-- Horizonal Gantt Timeline using Custom grids and borders -->
-                        <Grid x:Name="TimelineGrid" Height="24" Margin="0,4,0,10" Background="{DynamicResource TimelineBackgroundBrush}">
-                            <Grid.ColumnDefinitions>
-                                <!-- Columns represent proportion of time spent, set programmatically -->
-                                <ColumnDefinition x:Name="WhisperLoadCol" Width="0*"/>
-                                <ColumnDefinition x:Name="WhisperRunCol" Width="0*"/>
-                                <ColumnDefinition x:Name="ChatLoadCol" Width="0*"/>
-                                <ColumnDefinition x:Name="ChatRunCol" Width="0*"/>
-                                <!-- Fill empty remaining space -->
-                                <ColumnDefinition x:Name="TimelineRemainingCol" Width="1*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Border Grid.Column="0" Background="#FF555555" ToolTip="Whisper Model Loading" CornerRadius="2,0,0,2"/>
-                            <Border Grid.Column="1" Background="#FF00BFFF" ToolTip="Whisper Transcription Execution"/>
-                            <Border Grid.Column="2" Background="#FFFFA500" ToolTip="Chat Model Loading"/>
-                            <Border Grid.Column="3" Background="#FF30D158" ToolTip="Chat Model Text Correction Execution" CornerRadius="0,2,2,0"/>
-                        </Grid>
-
-                        <!-- Text details for durations -->
-                        <Grid>
+                <!-- Tab Control -->
+                <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Margin="0,4,0,0">
+                    <TabItem Header="🔍 Single Run Details">
+                        <Grid Margin="0,8,0,0">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/> <!-- Raw Output Box -->
+                                <RowDefinition Height="2*"/>   <!-- Formatted Output Box -->
+                                <RowDefinition Height="1*"/>   <!-- Editable System Prompt -->
+                                <RowDefinition Height="Auto"/> <!-- Visual timing metrics -->
+                            </Grid.RowDefinitions>
+
+                            <!-- Raw Output Box -->
+                            <Grid Grid.Row="0" Margin="0,0,0,12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Raw Transcription" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
+                                <TextBox x:Name="RawOutputTextBox" Grid.Row="1" IsReadOnly="True" Height="65" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            </Grid>
+
+                            <!-- Formatted Output Box -->
+                            <Grid Grid.Row="1" Margin="0,0,0,12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Formatted Output" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
+                                <TextBox x:Name="FormattedOutputTextBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                            </Grid>
+
+                            <!-- Custom system prompt editor -->
+                            <Grid Grid.Row="2" Margin="0,0,0,12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Custom Mode System Prompt" FontSize="11" FontWeight="SemiBold" Foreground="#FFAAAAAA" Margin="0,0,0,4"/>
+                                <TextBox x:Name="SystemPromptTextBox" Grid.Row="1" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+                                <Button x:Name="ApplyToModeButton" Grid.Row="2" Content="Apply edited prompt and options to Mode" Click="ApplyToModeButton_Click" Padding="8,4" FontSize="11" Margin="0,6,0,0" HorizontalAlignment="Right"/>
+                            </Grid>
+
+                            <!-- Performance timing bars -->
+                            <Border Grid.Row="3" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="PERFORMANCE TIMELINE" FontWeight="Bold" Foreground="#FF888888" FontSize="11" Margin="0,0,0,8"/>
+                                    
+                                    <!-- Horizonal Gantt Timeline using Custom grids and borders -->
+                                    <Grid x:Name="TimelineGrid" Height="24" Margin="0,4,0,10" Background="{DynamicResource TimelineBackgroundBrush}">
+                                        <Grid.ColumnDefinitions>
+                                            <!-- Columns represent proportion of time spent, set programmatically -->
+                                            <ColumnDefinition x:Name="WhisperLoadCol" Width="0*"/>
+                                            <ColumnDefinition x:Name="WhisperRunCol" Width="0*"/>
+                                            <ColumnDefinition x:Name="ChatLoadCol" Width="0*"/>
+                                            <ColumnDefinition x:Name="ChatRunCol" Width="0*"/>
+                                            <!-- Fill empty remaining space -->
+                                            <ColumnDefinition x:Name="TimelineRemainingCol" Width="1*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0" Background="#FF555555" ToolTip="Whisper Model Loading" CornerRadius="2,0,0,2"/>
+                                        <Border Grid.Column="1" Background="#FF00BFFF" ToolTip="Whisper Transcription Execution"/>
+                                        <Border Grid.Column="2" Background="#FFFFA500" ToolTip="Chat Model Loading"/>
+                                        <Border Grid.Column="3" Background="#FF30D158" ToolTip="Chat Model Text Correction Execution" CornerRadius="0,2,2,0"/>
+                                    </Grid>
+
+                                    <!-- Text details for durations -->
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Ellipse Width="8" Height="8" Fill="#FF00BFFF" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Transcription: " FontSize="11" Foreground="#FFAAAAAA"/>
+                                            <TextBlock x:Name="WhisperTimingsText" Text="0.00s (0.0 words/s)" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                            <TextBlock x:Name="WhisperLoadText" Text=" [Load: 0.00s]" FontSize="11" Foreground="#FF888888" Visibility="Collapsed"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Ellipse Width="8" Height="8" Fill="#FF30D158" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Text Formatting: " FontSize="11" Foreground="#FFAAAAAA"/>
+                                            <TextBlock x:Name="ChatTimingsText" Text="0.00s (0.0 char/s)" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                            <TextBlock x:Name="ChatLoadText" Text=" [Load: 0.00s]" FontSize="11" Foreground="#FF888888" Visibility="Collapsed"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
+                                            <TextBlock Text="Total Pipeline Duration: " FontSize="12" FontWeight="SemiBold" Foreground="White"/>
+                                            <TextBlock x:Name="TotalTimingsText" Text="0.00s" FontSize="12" FontWeight="Bold" Foreground="#FF00BFFF"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="📊 Batch Comparison" x:Name="BatchComparisonTab">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
-                                <Ellipse Width="8" Height="8" Fill="#FF00BFFF" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBlock Text="Transcription: " FontSize="11" Foreground="#FFAAAAAA"/>
-                                <TextBlock x:Name="WhisperTimingsText" Text="0.00s (0.0 words/s)" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                <TextBlock x:Name="WhisperLoadText" Text=" [Load: 0.00s]" FontSize="11" Foreground="#FF888888" Visibility="Collapsed"/>
-                            </StackPanel>
+                            <DataGrid x:Name="ComparisonDataGrid" Grid.Row="0" AutoGenerateColumns="False" Background="Transparent" RowBackground="Transparent" AlternatingRowBackground="#FF1A1A1A" BorderThickness="1" BorderBrush="#FF333333" Foreground="White" RowHeaderWidth="0" IsReadOnly="True" GridLinesVisibility="None" Margin="0,0,0,12">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#FF252525"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Padding" Value="6,4"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Setter Property="BorderBrush" Value="#FF333333"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Model" Binding="{Binding ModelName}" Width="1.2*"/>
+                                    <DataGridTextColumn Header="Load (s)" Binding="{Binding LoadSecLabel}" Width="0.6*"/>
+                                    <DataGridTextColumn Header="Format (s)" Binding="{Binding RunSecLabel}" Width="0.7*"/>
+                                    <DataGridTextColumn Header="Total (s)" Binding="{Binding TotalSecLabel}" Width="0.6*"/>
+                                    <DataGridTextColumn Header="Speed" Binding="{Binding SpeedLabel}" Width="0.8*"/>
+                                    <DataGridTextColumn Header="Sim (F1)" Binding="{Binding SimilarityLabel}" Width="0.7*"/>
+                                    <DataGridTemplateColumn Header="Action" Width="Auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="View" Click="ViewDetails_Click" Padding="6,2" FontSize="10" Margin="2" Background="#FF2D2D2D" Foreground="White"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
 
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
-                                <Ellipse Width="8" Height="8" Fill="#FF30D158" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBlock Text="Text Formatting: " FontSize="11" Foreground="#FFAAAAAA"/>
-                                <TextBlock x:Name="ChatTimingsText" Text="0.00s (0.0 char/s)" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                                <TextBlock x:Name="ChatLoadText" Text=" [Load: 0.00s]" FontSize="11" Foreground="#FF888888" Visibility="Collapsed"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0">
-                                <TextBlock Text="Total Pipeline Duration: " FontSize="12" FontWeight="SemiBold" Foreground="White"/>
-                                <TextBlock x:Name="TotalTimingsText" Text="0.00s" FontSize="12" FontWeight="Bold" Foreground="#FF00BFFF"/>
-                            </StackPanel>
+                            <!-- Selected Model Detail Preview within comparison -->
+                            <Border Grid.Row="1" Background="{DynamicResource SidebarBackgroundBrush}" BorderBrush="{DynamicResource SidebarBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="Selected Output Preview" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="11" Margin="0,0,0,4"/>
+                                    <TextBox Grid.Row="1" Text="{Binding SelectedItem.FormattedText, ElementName=ComparisonDataGrid, Mode=OneWay}" Height="100" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="#FF1E1E1E" Foreground="White"/>
+                                </Grid>
+                            </Border>
                         </Grid>
-                    </StackPanel>
-                </Border>
+                    </TabItem>
+                </TabControl>
             </Grid>
         </Border>
 
         <!-- COMPARISON OVERLAY -->
-        <Grid x:Name="ComparisonOverlay" Grid.RowSpan="2" Grid.ColumnSpan="3" Background="{DynamicResource ComparisonOverlayBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="100">
+        <Grid x:Name="ComparisonOverlay" Grid.RowSpan="2" Grid.ColumnSpan="5" Background="{DynamicResource ComparisonOverlayBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="100">
             <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Margin="40" Padding="20" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                 <Grid>
                     <Grid.RowDefinitions>

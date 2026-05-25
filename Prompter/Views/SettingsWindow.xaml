@@ -3,13 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Prompter.Views"
         Title="Prompter Settings"
-        Width="580"
-        Height="760"
-        ResizeMode="NoResize"
+        Width="1100"
+        Height="720"
+        MinWidth="900"
+        MinHeight="600"
+        ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="#FFEEEEEE">
-    
+
     <Window.Resources>
         <!-- Converters -->
         <local:BoolToTextConverter x:Key="BoolToYesNoConverter" TrueText="Yes" FalseText="No"/>
@@ -20,659 +22,1643 @@
         <local:BoolToTextConverter x:Key="BoolToDefaultFlag" TrueText="Default " FalseText=""/>
         <local:BoolToTextConverter x:Key="BoolToSkipFlag" TrueText="Skip " FalseText=""/>
         <local:BoolToTextConverter x:Key="BoolToDebugFlag" TrueText="Debug" FalseText=""/>
-
     </Window.Resources>
 
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <!-- Main Tabbed UI -->
-        <TabControl Grid.Row="0">
-            <!-- TAB 1: General Options -->
-            <TabItem Header="General Settings">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,12,0">
-                        <TextBlock Text="Global Trigger Hotkey" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <TextBlock Text="Press and hold this shortcut to begin speaking." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="HotkeyTextBox" IsReadOnly="True" VerticalContentAlignment="Center" Margin="0,0,12,0" Padding="8,8"/>
-                            <Button x:Name="CaptureHotkeyButton" Content="Press to Record" Grid.Column="1" Width="140" Click="CaptureHotkeyButton_Click"/>
-                        </Grid>
+        <!-- Left Sidebar -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource SidebarBackgroundBrush}"
+                BorderBrush="{DynamicResource SidebarBorderBrush}"
+                BorderThickness="0,0,1,0">
+            <StackPanel Margin="0,16,0,0">
+                <TextBlock Text="Prompter Settings"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           Margin="16,0,16,8"/>
+                <Rectangle Height="1"
+                           Fill="{DynamicResource SidebarBorderBrush}"
+                           Margin="12,0,12,8"/>
 
-                        <TextBlock Text="Model Idle Timeout (Minutes)" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <TextBlock Text="AI models will unload automatically after inactivity to free system resources." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <Slider x:Name="TtlSlider" Minimum="1" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TtlValue" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-
-                        <TextBlock Text="Application Preferences" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="AutoStartCheckBox" Content="Launch Prompter on Windows startup"/>
-                        <CheckBox x:Name="AudioFeedbackCheckBox" Content="Play audio feedback sounds when starting/stopping dictation"/>
-                        <CheckBox x:Name="NotificationsCheckBox" Content="Show Windows balloon notifications for status updates"/>
-                        <CheckBox x:Name="NotifyOnOutputReadyCheckBox" Content="Show notification popup after text is inserted" Margin="0,0,0,12"/>
-                        <CheckBox x:Name="SpokenPunctuationCheckBox" Content="Replace spoken punctuation commands (comma, period, etc.)" Margin="0,0,0,10"/>
-                        <CheckBox x:Name="CleanEnabledCheckBox" Content="Remove filler words (Clean mode)" Margin="0,0,0,6" Checked="CleanEnabledCheckBox_Checked" Unchecked="CleanEnabledCheckBox_Checked"/>
-                        <Grid x:Name="CleanPromptGrid" Margin="24,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="CleanPromptTextBox" Grid.Column="0" ToolTip="Custom prompt instructions appended when removing filler words" FontSize="11" TextWrapping="Wrap" Height="40" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0"/>
-                            <Button x:Name="ResetCleanPromptButton" Content="Reset" Grid.Column="1" VerticalAlignment="Top" Padding="8,4" Click="ResetCleanPromptButton_Click"/>
-                        </Grid>
-                        <CheckBox x:Name="ListFormattingEnabledCheckBox" Content="Format lists (List mode)" Margin="0,0,0,10"/>
+                <RadioButton x:Name="GeneralNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             IsChecked="True"
+                             Checked="Nav_Checked"
+                             Tag="0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE713;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="General"/>
                     </StackPanel>
-                </ScrollViewer>
-            </TabItem>
+                </RadioButton>
 
-            <!-- TAB 2: Modes -->
-            <TabItem Header="Modes">
-                <Grid Margin="0,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Text Correction Modes" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
-                    <TextBlock Grid.Row="0" Text="Manage how Prompter formats and corrects your speech. Built-in modes can be reset to defaults; custom modes can be deleted." FontSize="11" Foreground="#FF888888" Margin="0,22,0,8" TextWrapping="Wrap"/>
-
-                    <ListView x:Name="ModesListView" Grid.Row="1" Margin="0,0,0,12">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Name" Width="120">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="White"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Prompt" Width="260">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding SystemPrompt}" TextTrimming="CharacterEllipsis" Foreground="#FFCCCCCC"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Flags" Width="100">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding IsDefault, Converter={StaticResource BoolToDefaultFlag}}" Foreground="#FF00BFFF" FontWeight="Bold"/>
-                                                <TextBlock Text="{Binding SkipFormatting, Converter={StaticResource BoolToSkipFlag}}" Foreground="#FFFFA500" FontWeight="Bold"/>
-                                                <TextBlock Text="{Binding ShowDiagnosticOutput, Converter={StaticResource BoolToDebugFlag}}" Foreground="#FF888888" FontWeight="Bold"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="AddModeButton" Content="+ Add Mode" Grid.Column="0" HorizontalAlignment="Left" Click="AddModeButton_Click"/>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="SetDefaultModeButton" Content="Set Default" Margin="0,0,8,0" Click="SetDefaultModeButton_Click"/>
-                            <Button x:Name="EditModeButton" Content="Edit" Margin="0,0,8,0" Click="EditModeButton_Click"/>
-                            <Button x:Name="ResetModeButton" Content="Reset" Margin="0,0,8,0" Click="ResetModeButton_Click"/>
-                            <Button x:Name="DeleteModeButton" Content="Delete" Click="DeleteModeButton_Click"/>
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <!-- TAB 3: Dictionary -->
-            <TabItem Header="Dictionary">
-                <Grid Margin="0,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Personal Dictionary" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
-                    <TextBlock Grid.Row="0" Text="Add words and phrases that Whisper often mishears. Aliases are alternate spellings or pronunciations that should be corrected to the canonical word." FontSize="11" Foreground="#FF888888" Margin="0,22,0,8" TextWrapping="Wrap"/>
-
-                    <ListView x:Name="DictionaryListView" Grid.Row="1" Margin="0,0,0,12">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Word" Width="180">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Word}" FontWeight="SemiBold" Foreground="White"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Aliases" Width="320">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding AliasesDisplay}" TextTrimming="CharacterEllipsis" Foreground="#FFCCCCCC"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="AddDictionaryEntryButton" Content="+ Add Entry" Grid.Column="0" HorizontalAlignment="Left" Click="AddDictionaryEntryButton_Click"/>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="EditDictionaryEntryButton" Content="Edit" Margin="0,0,8,0" Click="EditDictionaryEntryButton_Click"/>
-                            <Button x:Name="DeleteDictionaryEntryButton" Content="Delete" Click="DeleteDictionaryEntryButton_Click"/>
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <!-- TAB 4: Snippets -->
-            <TabItem Header="Snippets">
-                <Grid Margin="0,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Row="0" Text="Text Snippets" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
-                    <TextBlock Grid.Row="0" Text="Voice-activated macros that insert pre-written text. Speak the trigger phrase and the expansion is typed directly." FontSize="11" Foreground="#FF888888" Margin="0,22,0,8" TextWrapping="Wrap"/>
-
-                    <ListView x:Name="SnippetsListView" Grid.Row="1" Margin="0,0,0,12">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Trigger" Width="180">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Trigger}" FontWeight="SemiBold" Foreground="White"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Expansion" Width="320">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding ExpansionPreview}" TextTrimming="CharacterEllipsis" Foreground="#FFCCCCCC"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="AddSnippetButton" Content="+ Add Snippet" Grid.Column="0" HorizontalAlignment="Left" Click="AddSnippetButton_Click"/>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="EditSnippetButton" Content="Edit" Margin="0,0,8,0" Click="EditSnippetButton_Click"/>
-                            <Button x:Name="DeleteSnippetButton" Content="Delete" Click="DeleteSnippetButton_Click"/>
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <!-- TAB 5: AI Models & Paste Settings -->
-            <TabItem Header="Models &amp; Clipboard">
-                <Grid Margin="0,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Whisper and Chat Model Selectors -->
-                    <Grid Grid.Row="0" Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Margin="0,0,10,0">
-                            <TextBlock Text="Speech Model (Whisper)" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
-                            <ComboBox x:Name="WhisperModelComboBox" SelectionChanged="WhisperModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
-                            <TextBlock x:Name="WhisperModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
-                            <Button x:Name="ManageCustomModelsButton" Content="Manage Custom Models..." Margin="0,8,0,0" Click="ManageCustomModelsButton_Click" HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                <TextBlock Text="Text Correction Model" FontWeight="Bold" Foreground="White"/>
-                                <TextBlock x:Name="LoadingModelsText" Text=" (loading…)" FontStyle="Italic" Foreground="Gray" Margin="4,0,0,0"/>
-                            </StackPanel>
-                            <ComboBox x:Name="ChatModelComboBox" SelectionChanged="ChatModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
-                            <TextBox x:Name="CustomModelTextBox" Margin="0,6,0,0" Visibility="Collapsed" ToolTip="Enter the exact Foundry Local model alias"/>
-                            <TextBlock x:Name="ChatModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
-                            <TextBlock Text="Hugging Face Token (Optional)" FontWeight="SemiBold" Margin="0,10,0,4" FontSize="11" Foreground="#FF888888"/>
-                            <TextBox x:Name="HfTokenTextBox" ToolTip="Optional token for gated models and higher rate limits on Hugging Face" FontSize="12"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Model Sandbox Playground -->
-                    <StackPanel Grid.Row="1" Margin="0,0,0,16">
-                        <TextBlock Text="Model Sandbox &amp; Playground" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <TextBlock Text="Open a dedicated sandbox to test transcription, text formatting, edit custom prompts, and analyze generation speeds." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-                        <Button x:Name="OpenSandboxButton" Content="Open Model Playground..." Click="OpenSandboxButton_Click" HorizontalAlignment="Stretch" Padding="12,8"/>
+                <RadioButton x:Name="ModesNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8D4;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Modes"/>
                     </StackPanel>
+                </RadioButton>
 
-
-                    <!-- Clipboard Paste Threshold Settings -->
-                    <StackPanel Grid.Row="2" Margin="0,0,0,20">
-                        <TextBlock Text="Hybrid Keystroke Injection Settings" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <TextBlock Text="Instantly paste long transcriptions using clipboard simulation instead of slow simulated typing." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-                        <StackPanel Orientation="Horizontal">
-                            <CheckBox x:Name="UsePasteCheckBox" Content="Enable hybrid clipboard paste" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                            <TextBlock Text="Paste threshold (characters): " VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox x:Name="PasteThresholdTextBox" Width="60" Text="150" VerticalAlignment="Center" HorizontalContentAlignment="Center"/>
-                        </StackPanel>
+                <RadioButton x:Name="ModelsNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="2">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8A5;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Models &amp; Clipboard"/>
                     </StackPanel>
+                </RadioButton>
 
-                    <!-- Model Status List -->
-                    <TextBlock Grid.Row="3" Text="Local Model Dashboard" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
-                    <ListView x:Name="ModelsListView" Grid.Row="4" Margin="0,0,0,12" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Model Alias" Width="140" DisplayMemberBinding="{Binding Alias}"/>
-                                <GridViewColumn Header="Type" Width="130" DisplayMemberBinding="{Binding TaskType}"/>
-                                <GridViewColumn Header="Size" Width="70" DisplayMemberBinding="{Binding SizeDescription}"/>
-                                <GridViewColumn Header="Downloaded" Width="90">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding IsCached, Converter={StaticResource BoolToYesNoConverter}}" 
-                                                       Foreground="{Binding IsCached, Converter={StaticResource BoolToColorConverter}}" 
-                                                       FontWeight="Bold"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Loaded" Width="70">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding IsLoaded, Converter={StaticResource BoolToActiveConverter}}" 
-                                                       Foreground="{Binding IsLoaded, Converter={StaticResource BoolToLoadedColorConverter}}" 
-                                                       FontWeight="Bold"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
+                <RadioButton x:Name="DictionaryNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="3">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE82D;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Dictionary"/>
+                    </StackPanel>
+                </RadioButton>
 
-                    <!-- Management Actions -->
-                    <Grid Grid.Row="5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0">
-                            <Run Text="System: " FontWeight="Bold" Foreground="#FFCCCCCC"/>
-                            <Run x:Name="GpuStatusTextBlock" Text="DirectML GPU/NPU acceleration active (ONNX Runtime)" Foreground="#FF32CD32" FontWeight="SemiBold"/>
-                        </TextBlock>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button x:Name="UnloadModelButton" Content="Unload Model" Margin="0,0,8,0" Click="UnloadModelButton_Click"/>
-                            <Button x:Name="DownloadModelButton" Content="Download/Cache" Click="DownloadModelButton_Click"/>
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
+                <RadioButton x:Name="SnippetsNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="4">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8C8;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Snippets"/>
+                    </StackPanel>
+                </RadioButton>
 
-            <!-- TAB 6: Appearance & Overlays -->
-            <TabItem Header="Appearance">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,12,0">
+                <RadioButton x:Name="AppearanceNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="5">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE771;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Appearance"/>
+                    </StackPanel>
+                </RadioButton>
 
-                        <!-- Recording Overlay -->
-                        <TextBlock Text="Recording Overlay" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <CheckBox x:Name="ShowRecordingOverlayCheckBox" Content="Show recording overlay while listening" Margin="0,0,0,8"/>
-                        <CheckBox x:Name="ShowStatusTextCheckBox" Content="Show status text on recording overlay" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Listening label" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="ListeningLabelTextBox" VerticalContentAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Processing label" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="ProcessingLabelTextBox" VerticalContentAlignment="Center"/>
-                            </StackPanel>
-                        </Grid>
-                        <CheckBox x:Name="ShowAudioMeterCheckBox" Content="Show audio level meter on recording overlay" Margin="0,0,0,12"/>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Anchor" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="RecordingAnchorComboBox"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                <TextBlock Text="Offset X (px)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="RecordingOffsetXTextBox" HorizontalContentAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Offset Y (px)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="RecordingOffsetYTextBox" HorizontalContentAlignment="Center"/>
-                            </StackPanel>
-                        </Grid>
+                <RadioButton x:Name="LogsNav"
+                             Style="{StaticResource SidebarItemStyle}"
+                             Checked="Nav_Checked"
+                             Tag="6">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8FD;"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   Width="24"/>
+                        <TextBlock Text="Logs"/>
+                    </StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Border>
 
-                        <!-- Preview Toast -->
-                        <TextBlock Text="Preview Toast" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <CheckBox x:Name="ShowPreviewToastCheckBox" Content="Show preview toast after transcription" Margin="0,0,0,12"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Anchor" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="PreviewAnchorComboBox"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                <TextBlock Text="Offset X (px)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="PreviewOffsetXTextBox" HorizontalContentAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Offset Y (px)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <TextBox x:Name="PreviewOffsetYTextBox" HorizontalContentAlignment="Center"/>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Dismiss after (seconds): " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="ToastDurationSlider" Grid.Column="1" Minimum="1" Maximum="15" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ToastDurationValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Max width (px): " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="MaxWidthSlider" Grid.Column="1" Minimum="300" Maximum="800" TickFrequency="50" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="MaxWidthValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
+        <!-- Right Content Area -->
+        <Grid Grid.Column="1" Background="{DynamicResource WindowBackgroundBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-                        <!-- Colors -->
-                        <TextBlock Text="Colors" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Theme" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="ThemeComboBox"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Accent Color (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="AccentColorTextBox" Grid.Column="0" VerticalContentAlignment="Center" Text="#FF3333"/>
-                                    <Border x:Name="AccentPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
-                                </Grid>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Text Color (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="TextColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
-                                    <Border x:Name="TextColorPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
-                                </Grid>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Processing Accent (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="ProcessingAccentColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
-                                    <Border x:Name="ProcessingAccentPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
-                                </Grid>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Overlay Background (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="OverlayBackgroundColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
-                                    <Border x:Name="OverlayBackgroundPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
-                                </Grid>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Toast Background (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="ToastBackgroundColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
-                                    <Border x:Name="ToastBackgroundPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
-                                </Grid>
-                            </StackPanel>
-                        </Grid>
+            <!-- Scrollable Content -->
+            <ScrollViewer Grid.Row="0"
+                          VerticalScrollBarVisibility="Auto"
+                          Margin="24,24,24,0">
+                <StackPanel>
 
-                        <!-- Typography -->
-                        <TextBlock Text="Typography" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Font Family" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="FontFamilyComboBox" IsEditable="True"/>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Overlay font size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="OverlayFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="OverlayFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Toast title size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="ToastTitleFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ToastTitleFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Toast body size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="ToastBodyFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ToastBodyFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
+                    <!-- ========================================================= -->
+                    <!-- SECTION 0: General                                        -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="GeneralSection">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                        <!-- Shape & Effects -->
-                        <TextBlock Text="Shape &amp; Effects" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Overlay opacity: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="OpacitySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="OpacityValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Toast opacity: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="ToastOpacitySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="ToastOpacityValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Corner radius: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="CornerRadiusSlider" Grid.Column="1" Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="CornerRadiusValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Padding: " VerticalAlignment="Center" Margin="0,0,12,0"/>
-                            <Slider x:Name="PaddingSlider" Grid.Column="1" Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="PaddingValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
-                        </Grid>
-                        <CheckBox x:Name="ShadowEnabledCheckBox" Content="Show window shadow" Margin="0,0,0,12"/>
-                        <Grid Margin="0,0,0,20">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Pulse Speed" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="PulseSpeedComboBox"/>
-                            </StackPanel>
-                        </Grid>
+                        <TextBlock Grid.Row="0"
+                                   Text="General Settings"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
 
-                        <!-- Visual Preview -->
-                        <TextBlock Text="Visual Preview" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,8"/>
-                        <Grid>
+                        <!-- Hotkey Card -->
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Global Trigger Hotkey"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <TextBlock Text="Press and hold this shortcut to begin speaking."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           Margin="0,0,0,12"/>
+                                <Border CornerRadius="6"
+                                        Background="#FF1E1E1E"
+                                        BorderBrush="#FF3A3A3A"
+                                        BorderThickness="1"
+                                        Padding="8,6">
+                                    <Grid>
+                                        <TextBox x:Name="HotkeyTextBox"
+                                                 IsReadOnly="True"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 VerticalContentAlignment="Center"
+                                                 Foreground="White"/>
+                                        <Button x:Name="CaptureHotkeyButton"
+                                                Content=""
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Click="CaptureHotkeyButton_Click"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                Padding="0"/>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Text="Click to assign a new hotkey."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Timeout Card -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Model Idle Timeout (Minutes)"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <TextBlock Text="Automatically unload AI models after inactivity."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           Margin="0,0,0,12"/>
+                                <Slider x:Name="TtlSlider"
+                                        Minimum="1"
+                                        Maximum="30"
+                                        TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        AutoToolTipPlacement="TopLeft"
+                                        AutoToolTipPrecision="0"/>
+                                <TextBlock x:Name="TtlValue"
+                                           Visibility="Collapsed"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Preference Cards (two columns) -->
+                        <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="RecordingMockup" Grid.Column="0" MinHeight="48" BorderThickness="1" Margin="0,0,8,0" HorizontalAlignment="Stretch">
-                                <StackPanel x:Name="RecordingMockupStack" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Ellipse x:Name="RecordingMockupDot" Width="10" Height="10" Margin="0,0,8,0"/>
-                                    <TextBlock x:Name="RecordingMockupText" Text="Listening..." FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                            <!-- Left Card: System & Notifications -->
+                            <Border Grid.Column="0"
+                                    Style="{StaticResource CardStyle}"
+                                    Margin="0,0,8,16">
+                                <StackPanel>
+                                    <TextBlock Text="System &amp; Startup"
+                                               Style="{StaticResource CardTitleStyle}"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Launch Prompter on Windows startup"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="AutoStartCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <TextBlock Text="Notifications &amp; Audio"
+                                               Style="{StaticResource CardTitleStyle}"
+                                               Margin="0,8,0,12"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Play audio cues for start/stop dictation"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="AudioFeedbackCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Show system notifications"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="NotificationsCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Show pop-up after text insertion"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="NotifyOnOutputReadyCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="ToastMockup" Grid.Column="1" MinHeight="48" BorderThickness="1" HorizontalAlignment="Stretch">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock x:Name="ToastMockupTitle" Text="Prompter Output" FontWeight="Bold" Grid.Row="0" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="ToastMockupBody" Text="Preview text here..." TextTrimming="CharacterEllipsis" Grid.Row="1"/>
-                                </Grid>
+
+                            <!-- Right Card: Text Processing & Cleaning -->
+                            <Border Grid.Column="1"
+                                    Style="{StaticResource CardStyle}"
+                                    Margin="8,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Text Processing &amp; Cleaning"
+                                               Style="{StaticResource CardTitleStyle}"/>
+
+                                    <TextBlock Text="Text Formatting"
+                                               Style="{StaticResource CardTitleStyle}"
+                                               Margin="0,0,0,8"
+                                               FontSize="12"
+                                               Foreground="#FF888888"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Replace spoken punctuation"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="SpokenPunctuationCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Format lists (List mode)"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ListFormattingEnabledCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Clean Mode (Filler Word Removal)"
+                                                       Style="{StaticResource SettingLabelStyle}"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="Remove filler words. Preserves content."
+                                                       Style="{StaticResource SettingDescriptionStyle}"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="CleanEnabledCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"
+                                                      Checked="CleanEnabledCheckBox_Checked"
+                                                      Unchecked="CleanEnabledCheckBox_Checked"/>
+                                    </Grid>
+
+                                    <Grid x:Name="CleanPromptGrid" Margin="0,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="CleanPromptTextBox"
+                                                 Grid.Column="0"
+                                                 ToolTip="Custom prompt instructions appended when removing filler words"
+                                                 FontSize="11"
+                                                 TextWrapping="Wrap"
+                                                 Height="40"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Margin="0,0,8,0"/>
+                                        <Button x:Name="ResetCleanPromptButton"
+                                                Content="Reset"
+                                                Grid.Column="1"
+                                                VerticalAlignment="Top"
+                                                Padding="8,4"
+                                                Click="ResetCleanPromptButton_Click"/>
+                                    </Grid>
+                                </StackPanel>
                             </Border>
                         </Grid>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- TAB 7: Logs -->
-            <TabItem Header="Logs">
-                <Grid Margin="0,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="Filter Logs" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                            <TextBox x:Name="LogsFilterTextBox" Padding="8,6" TextChanged="LogsFilterTextBox_TextChanged"/>
-                        </StackPanel>
-                        <Button x:Name="ClearLogsButton" Grid.Column="1" Content="Clear Logs" VerticalAlignment="Bottom" Click="ClearLogsButton_Click"/>
                     </Grid>
 
-                    <ListView x:Name="LogsListView" Grid.Row="1" Margin="0,0,0,12">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Timestamp" Width="140" DisplayMemberBinding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
-                                <GridViewColumn Header="Message" Width="360">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{Binding IsError, Converter={StaticResource BoolToErrorColorConverter}}"/>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="File" Width="100" DisplayMemberBinding="{Binding SourceFile}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </Grid>
-            </TabItem>
-        </TabControl>
+                    <!-- ========================================================= -->
+                    <!-- SECTION 1: Modes                                          -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="ModesSection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-        <!-- Dialog Buttons -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Content="Preview" Width="100" Margin="0,0,8,0" Click="Preview_Click"/>
-            <Button Content="Save Options" Width="120" Margin="0,0,8,0" Click="Save_Click"/>
-            <Button Content="Cancel" Width="100" Click="Cancel_Click"/>
-        </StackPanel>
+                        <TextBlock Grid.Row="0"
+                                   Text="Text Correction Modes"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="Manage how Prompter formats and corrects your speech. Built-in modes can be reset to defaults; custom modes can be deleted."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+
+                                <ListView x:Name="ModesListView"
+                                          Grid.Row="1"
+                                          Margin="0,0,0,12"
+                                          MinHeight="200"
+                                          MaxHeight="400">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Name" Width="120">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="White"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Prompt" Width="260">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding SystemPrompt}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="#FFCCCCCC"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Flags" Width="100">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding IsDefault, Converter={StaticResource BoolToDefaultFlag}}"
+                                                                       Foreground="#FF00BFFF"
+                                                                       FontWeight="Bold"/>
+                                                            <TextBlock Text="{Binding SkipFormatting, Converter={StaticResource BoolToSkipFlag}}"
+                                                                       Foreground="#FFFFA500"
+                                                                       FontWeight="Bold"/>
+                                                            <TextBlock Text="{Binding ShowDiagnosticOutput, Converter={StaticResource BoolToDebugFlag}}"
+                                                                       Foreground="#FF888888"
+                                                                       FontWeight="Bold"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="AddModeButton"
+                                            Content="+ Add Mode"
+                                            Grid.Column="0"
+                                            HorizontalAlignment="Left"
+                                            Click="AddModeButton_Click"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button x:Name="SetDefaultModeButton"
+                                                Content="Set Default"
+                                                Margin="0,0,8,0"
+                                                Click="SetDefaultModeButton_Click"/>
+                                        <Button x:Name="EditModeButton"
+                                                Content="Edit"
+                                                Margin="0,0,8,0"
+                                                Click="EditModeButton_Click"/>
+                                        <Button x:Name="ResetModeButton"
+                                                Content="Reset"
+                                                Margin="0,0,8,0"
+                                                Click="ResetModeButton_Click"/>
+                                        <Button x:Name="DeleteModeButton"
+                                                Content="Delete"
+                                                Click="DeleteModeButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ========================================================= -->
+                    <!-- SECTION 2: Models & Clipboard                             -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="ModelsSection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Models &amp; Clipboard"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <!-- Model Selectors -->
+                        <Grid Grid.Row="1" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Speech Model (Whisper)"
+                                               Style="{StaticResource CardTitleStyle}"/>
+                                    <ComboBox x:Name="WhisperModelComboBox"
+                                              SelectionChanged="WhisperModelComboBox_SelectionChanged"
+                                              HorizontalAlignment="Stretch"
+                                              Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="WhisperModelStatusText"
+                                               FontSize="11"
+                                               Foreground="#FF32CD32"
+                                               Margin="0,0,0,6"
+                                               Text=""/>
+                                    <Button x:Name="ManageCustomModelsButton"
+                                            Content="Manage Custom Models..."
+                                            Click="ManageCustomModelsButton_Click"
+                                            HorizontalAlignment="Stretch"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Text Correction Model"
+                                                   Style="{StaticResource CardTitleStyle}"/>
+                                        <TextBlock x:Name="LoadingModelsText"
+                                                   Text=" (loading...)"
+                                                   FontStyle="Italic"
+                                                   Foreground="Gray"
+                                                   Margin="4,0,0,0"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="ChatModelComboBox"
+                                              SelectionChanged="ChatModelComboBox_SelectionChanged"
+                                              HorizontalAlignment="Stretch"
+                                              Margin="0,0,0,6"/>
+                                    <TextBox x:Name="CustomModelTextBox"
+                                             Margin="0,0,0,6"
+                                             Visibility="Collapsed"
+                                             ToolTip="Enter the exact Foundry Local model alias"/>
+                                    <TextBlock x:Name="ChatModelStatusText"
+                                               FontSize="11"
+                                               Foreground="#FF32CD32"
+                                               Margin="0,0,0,6"
+                                               Text=""/>
+                                    <TextBlock Text="Hugging Face Token (Optional)"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,4"
+                                               FontSize="11"
+                                               Foreground="#FF888888"/>
+                                    <TextBox x:Name="HfTokenTextBox"
+                                             ToolTip="Optional token for gated models and higher rate limits on Hugging Face"
+                                             FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Sandbox Card -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Model Sandbox &amp; Playground"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <TextBlock Text="Open a dedicated sandbox to test transcription, text formatting, edit custom prompts, and analyze generation speeds."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+                                <Button x:Name="OpenSandboxButton"
+                                        Content="Open Model Playground..."
+                                        Click="OpenSandboxButton_Click"
+                                        HorizontalAlignment="Stretch"
+                                        Padding="12,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Clipboard Card -->
+                        <Border Grid.Row="3" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Hybrid Keystroke Injection Settings"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <TextBlock Text="Instantly paste long transcriptions using clipboard simulation instead of slow simulated typing."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton x:Name="UsePasteCheckBox"
+                                                  Grid.Column="0"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,12,0"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="Enable hybrid clipboard paste"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,0"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="Paste threshold (chars):"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <TextBox x:Name="PasteThresholdTextBox"
+                                             Grid.Column="3"
+                                             Width="60"
+                                             Text="150"
+                                             VerticalAlignment="Center"
+                                             HorizontalContentAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Model Dashboard -->
+                        <TextBlock Grid.Row="4"
+                                   Text="Local Model Dashboard"
+                                   Style="{StaticResource CardTitleStyle}"
+                                   Margin="0,0,0,6"/>
+
+                        <Border Grid.Row="5" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <ListView x:Name="ModelsListView"
+                                          Grid.Row="0"
+                                          Margin="0,0,0,12"
+                                          GridViewColumnHeader.Click="GridViewColumnHeader_Click"
+                                          MinHeight="200"
+                                          MaxHeight="400">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Model Alias"
+                                                            Width="140"
+                                                            DisplayMemberBinding="{Binding Alias}"/>
+                                            <GridViewColumn Header="Type"
+                                                            Width="130"
+                                                            DisplayMemberBinding="{Binding TaskType}"/>
+                                            <GridViewColumn Header="Size"
+                                                            Width="70"
+                                                            DisplayMemberBinding="{Binding SizeDescription}"/>
+                                            <GridViewColumn Header="Downloaded" Width="90">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding IsCached, Converter={StaticResource BoolToYesNoConverter}}"
+                                                                   Foreground="{Binding IsCached, Converter={StaticResource BoolToColorConverter}}"
+                                                                   FontWeight="Bold"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Loaded" Width="70">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding IsLoaded, Converter={StaticResource BoolToActiveConverter}}"
+                                                                   Foreground="{Binding IsLoaded, Converter={StaticResource BoolToLoadedColorConverter}}"
+                                                                   FontWeight="Bold"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,12,0">
+                                        <Run Text="System: " FontWeight="Bold" Foreground="#FFCCCCCC"/>
+                                        <Run x:Name="GpuStatusTextBlock"
+                                             Text="DirectML GPU/NPU acceleration active (ONNX Runtime)"
+                                             Foreground="#FF32CD32"
+                                             FontWeight="SemiBold"/>
+                                    </TextBlock>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button x:Name="UnloadModelButton"
+                                                Content="Unload Model"
+                                                Margin="0,0,8,0"
+                                                Click="UnloadModelButton_Click"/>
+                                        <Button x:Name="DownloadModelButton"
+                                                Content="Download/Cache"
+                                                Click="DownloadModelButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ========================================================= -->
+                    <!-- SECTION 3: Dictionary                                     -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="DictionarySection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Personal Dictionary"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="Add words and phrases that Whisper often mishears. Aliases are alternate spellings or pronunciations that should be corrected to the canonical word."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+
+                                <ListView x:Name="DictionaryListView"
+                                          Grid.Row="1"
+                                          Margin="0,0,0,12"
+                                          MinHeight="200"
+                                          MaxHeight="400">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Word" Width="180">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Word}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="White"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Aliases" Width="320">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding AliasesDisplay}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="#FFCCCCCC"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="AddDictionaryEntryButton"
+                                            Content="+ Add Entry"
+                                            Grid.Column="0"
+                                            HorizontalAlignment="Left"
+                                            Click="AddDictionaryEntryButton_Click"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button x:Name="EditDictionaryEntryButton"
+                                                Content="Edit"
+                                                Margin="0,0,8,0"
+                                                Click="EditDictionaryEntryButton_Click"/>
+                                        <Button x:Name="DeleteDictionaryEntryButton"
+                                                Content="Delete"
+                                                Click="DeleteDictionaryEntryButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ========================================================= -->
+                    <!-- SECTION 4: Snippets                                       -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="SnippetsSection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Text Snippets"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="Voice-activated macros that insert pre-written text. Speak the trigger phrase and the expansion is typed directly."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+
+                                <ListView x:Name="SnippetsListView"
+                                          Grid.Row="1"
+                                          Margin="0,0,0,12"
+                                          MinHeight="200"
+                                          MaxHeight="400">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Trigger" Width="180">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Trigger}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="White"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="Expansion" Width="320">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding ExpansionPreview}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="#FFCCCCCC"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <Grid Grid.Row="2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="AddSnippetButton"
+                                            Content="+ Add Snippet"
+                                            Grid.Column="0"
+                                            HorizontalAlignment="Left"
+                                            Click="AddSnippetButton_Click"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button x:Name="EditSnippetButton"
+                                                Content="Edit"
+                                                Margin="0,0,8,0"
+                                                Click="EditSnippetButton_Click"/>
+                                        <Button x:Name="DeleteSnippetButton"
+                                                Content="Delete"
+                                                Click="DeleteSnippetButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ========================================================= -->
+                    <!-- SECTION 5: Appearance                                     -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="AppearanceSection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Appearance &amp; Overlays"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <!-- Overlay + Toast Cards -->
+                        <Grid Grid.Row="1" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="Recording Overlay"
+                                               Style="{StaticResource CardTitleStyle}"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Show recording overlay while listening"
+                                                   Style="{StaticResource SettingLabelStyle}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                        <ToggleButton x:Name="ShowRecordingOverlayCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Show status text on recording overlay"
+                                                   Style="{StaticResource SettingLabelStyle}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                        <ToggleButton x:Name="ShowStatusTextCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock Text="Listening label"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="ListeningLabelTextBox"
+                                                     VerticalContentAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Processing label"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="ProcessingLabelTextBox"
+                                                     VerticalContentAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Show audio level meter on recording overlay"
+                                                   Style="{StaticResource SettingLabelStyle}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                        <ToggleButton x:Name="ShowAudioMeterCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock Text="Anchor"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <ComboBox x:Name="RecordingAnchorComboBox"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                            <TextBlock Text="Offset X (px)"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="RecordingOffsetXTextBox"
+                                                     HorizontalContentAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Offset Y (px)"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="RecordingOffsetYTextBox"
+                                                     HorizontalContentAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Preview Toast"
+                                               Style="{StaticResource CardTitleStyle}"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Show preview toast after transcription"
+                                                   Style="{StaticResource SettingLabelStyle}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center"/>
+                                        <ToggleButton x:Name="ShowPreviewToastCheckBox"
+                                                      Grid.Column="1"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock Text="Anchor"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <ComboBox x:Name="PreviewAnchorComboBox"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                            <TextBlock Text="Offset X (px)"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="PreviewOffsetXTextBox"
+                                                     HorizontalContentAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Offset Y (px)"
+                                                       FontSize="11"
+                                                       Foreground="#FF888888"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox x:Name="PreviewOffsetYTextBox"
+                                                     HorizontalContentAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="50"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Dismiss after (seconds): "
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+                                        <Slider x:Name="ToastDurationSlider"
+                                                Grid.Column="1"
+                                                Minimum="1"
+                                                Maximum="15"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                AutoToolTipPlacement="TopLeft"
+                                                AutoToolTipPrecision="0"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="ToastDurationValue"
+                                                   Grid.Column="2"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FF00BFFF"
+                                                   FontSize="14"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="50"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Max width (px): "
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+                                        <Slider x:Name="MaxWidthSlider"
+                                                Grid.Column="1"
+                                                Minimum="300"
+                                                Maximum="800"
+                                                TickFrequency="50"
+                                                IsSnapToTickEnabled="True"
+                                                AutoToolTipPlacement="TopLeft"
+                                                AutoToolTipPrecision="0"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="MaxWidthValue"
+                                                   Grid.Column="2"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FF00BFFF"
+                                                   FontSize="14"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Colors Card -->
+                        <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Colors"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="Theme"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="ThemeComboBox"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Accent Color (hex)"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="AccentColorTextBox"
+                                                     Grid.Column="0"
+                                                     VerticalContentAlignment="Center"
+                                                     Text="#FF3333"/>
+                                            <Border x:Name="AccentPreview"
+                                                    Grid.Column="1"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="4"
+                                                    Margin="8,0,0,0"
+                                                    BorderBrush="#FF555555"
+                                                    BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="Text Color (hex)"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TextColorTextBox"
+                                                     Grid.Column="0"
+                                                     VerticalContentAlignment="Center"/>
+                                            <Border x:Name="TextColorPreview"
+                                                    Grid.Column="1"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="4"
+                                                    Margin="8,0,0,0"
+                                                    BorderBrush="#FF555555"
+                                                    BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Processing Accent (hex)"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ProcessingAccentColorTextBox"
+                                                     Grid.Column="0"
+                                                     VerticalContentAlignment="Center"/>
+                                            <Border x:Name="ProcessingAccentPreview"
+                                                    Grid.Column="1"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="4"
+                                                    Margin="8,0,0,0"
+                                                    BorderBrush="#FF555555"
+                                                    BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="Overlay Background (hex)"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="OverlayBackgroundColorTextBox"
+                                                     Grid.Column="0"
+                                                     VerticalContentAlignment="Center"/>
+                                            <Border x:Name="OverlayBackgroundPreview"
+                                                    Grid.Column="1"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="4"
+                                                    Margin="8,0,0,0"
+                                                    BorderBrush="#FF555555"
+                                                    BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Toast Background (hex)"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ToastBackgroundColorTextBox"
+                                                     Grid.Column="0"
+                                                     VerticalContentAlignment="Center"/>
+                                            <Border x:Name="ToastBackgroundPreview"
+                                                    Grid.Column="1"
+                                                    Width="24"
+                                                    Height="24"
+                                                    CornerRadius="4"
+                                                    Margin="8,0,0,0"
+                                                    BorderBrush="#FF555555"
+                                                    BorderThickness="1"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Typography Card -->
+                        <Border Grid.Row="3" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Typography"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="Font Family"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="FontFamilyComboBox" IsEditable="True"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Overlay font size: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="OverlayFontSizeSlider"
+                                            Grid.Column="1"
+                                            Minimum="8"
+                                            Maximum="48"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="OverlayFontSizeValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Toast title size: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="ToastTitleFontSizeSlider"
+                                            Grid.Column="1"
+                                            Minimum="8"
+                                            Maximum="48"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ToastTitleFontSizeValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Toast body size: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="ToastBodyFontSizeSlider"
+                                            Grid.Column="1"
+                                            Minimum="8"
+                                            Maximum="48"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ToastBodyFontSizeValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Shape & Effects Card -->
+                        <Border Grid.Row="4" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Shape &amp; Effects"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Overlay opacity: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="OpacitySlider"
+                                            Grid.Column="1"
+                                            Minimum="0"
+                                            Maximum="100"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="OpacityValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Toast opacity: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="ToastOpacitySlider"
+                                            Grid.Column="1"
+                                            Minimum="0"
+                                            Maximum="100"
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ToastOpacityValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Corner radius: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="CornerRadiusSlider"
+                                            Grid.Column="1"
+                                            Minimum="0"
+                                            Maximum="32"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="CornerRadiusValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Padding: "
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    <Slider x:Name="PaddingSlider"
+                                            Grid.Column="1"
+                                            Minimum="0"
+                                            Maximum="32"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            AutoToolTipPlacement="TopLeft"
+                                            AutoToolTipPrecision="0"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PaddingValue"
+                                               Grid.Column="2"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#FF00BFFF"
+                                               FontSize="14"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="Show window shadow"
+                                               Style="{StaticResource SettingLabelStyle}"
+                                               VerticalAlignment="Center"/>
+                                    <ToggleButton x:Name="ShadowEnabledCheckBox"
+                                                  Grid.Column="1"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="Pulse Speed"
+                                                   FontSize="11"
+                                                   Foreground="#FF888888"
+                                                   Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="PulseSpeedComboBox"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Visual Preview Card -->
+                        <Border Grid.Row="5" Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Visual Preview"
+                                           Style="{StaticResource CardTitleStyle}"
+                                           Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border x:Name="RecordingMockup"
+                                            Grid.Column="0"
+                                            MinHeight="48"
+                                            BorderThickness="1"
+                                            Margin="0,0,8,0"
+                                            HorizontalAlignment="Stretch">
+                                        <StackPanel x:Name="RecordingMockupStack"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <Ellipse x:Name="RecordingMockupDot"
+                                                     Width="10"
+                                                     Height="10"
+                                                     Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="RecordingMockupText"
+                                                       Text="Listening..."
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border x:Name="ToastMockup"
+                                            Grid.Column="1"
+                                            MinHeight="48"
+                                            BorderThickness="1"
+                                            HorizontalAlignment="Stretch">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock x:Name="ToastMockupTitle"
+                                                       Text="Prompter Output"
+                                                       FontWeight="Bold"
+                                                       Grid.Row="0"
+                                                       Margin="0,0,0,2"/>
+                                            <TextBlock x:Name="ToastMockupBody"
+                                                       Text="Preview text here..."
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Grid.Row="1"/>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- ========================================================= -->
+                    <!-- SECTION 6: Logs                                           -->
+                    <!-- ========================================================= -->
+                    <Grid x:Name="LogsSection" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Logs"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <TextBlock Text="Filter Logs"
+                                                   Style="{StaticResource CardTitleStyle}"/>
+                                        <TextBox x:Name="LogsFilterTextBox"
+                                                  Padding="8,6"
+                                                  TextChanged="LogsFilterTextBox_TextChanged"/>
+                                    </StackPanel>
+                                    <Button x:Name="ClearLogsButton"
+                                            Grid.Column="1"
+                                            Content="Clear Logs"
+                                            VerticalAlignment="Bottom"
+                                            Click="ClearLogsButton_Click"/>
+                                </Grid>
+
+                                <ListView x:Name="LogsListView"
+                                          Grid.Row="1"
+                                          Margin="0,0,0,12"
+                                          MinHeight="200"
+                                          MaxHeight="400">
+                                    <ListView.View>
+                                        <GridView>
+                                            <GridViewColumn Header="Timestamp"
+                                                            Width="140"
+                                                            DisplayMemberBinding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
+                                            <GridViewColumn Header="Message" Width="360">
+                                                <GridViewColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Message}"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{Binding IsError, Converter={StaticResource BoolToErrorColorConverter}}"/>
+                                                    </DataTemplate>
+                                                </GridViewColumn.CellTemplate>
+                                            </GridViewColumn>
+                                            <GridViewColumn Header="File"
+                                                            Width="100"
+                                                            DisplayMemberBinding="{Binding SourceFile}"/>
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Bottom Action Bar -->
+            <Border Grid.Row="1"
+                    Background="{DynamicResource WindowBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="24,12">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Content="Preview"
+                            Style="{StaticResource GhostButtonStyle}"
+                            Width="100"
+                            Margin="0,0,8,0"
+                            Click="Preview_Click"/>
+                    <Button Content="Save Options"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Width="120"
+                            Margin="0,0,8,0"
+                            Click="Save_Click"/>
+                    <Button Content="Cancel"
+                            Style="{StaticResource GhostButtonStyle}"
+                            Width="100"
+                            Click="Cancel_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

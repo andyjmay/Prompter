@@ -1692,6 +1692,37 @@ public partial class SettingsWindow : Window
 
         view.Refresh();
     }
+    private void Nav_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton rb) return;
+        if (!int.TryParse(rb.Tag?.ToString(), out var index)) return;
+        ShowSection(index);
+    }
+
+    private void ShowSection(int index)
+    {
+        var sections = new[]
+        {
+            GeneralSection,
+            ModesSection,
+            ModelsSection,
+            DictionarySection,
+            SnippetsSection,
+            AppearanceSection,
+            LogsSection
+        };
+
+        foreach (var section in sections)
+        {
+            section.Visibility = Visibility.Collapsed;
+        }
+
+        if (index >= 0 && index < sections.Length)
+        {
+            sections[index].Visibility = Visibility.Visible;
+        }
+    }
+
     private void OpenSandboxButton_Click(object sender, RoutedEventArgs e)
     {
         _dialogService.ShowModelTestingDialog(
