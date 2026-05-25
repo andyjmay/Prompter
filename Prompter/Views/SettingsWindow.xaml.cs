@@ -70,6 +70,7 @@ public partial class SettingsWindow : Window
         AudioFeedbackCheckBox.IsChecked = _config.AudioFeedbackEnabled;
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
         NotifyOnOutputReadyCheckBox.IsChecked = _config.NotifyOnOutputReady;
+        SpokenPunctuationCheckBox.IsChecked = _config.SpokenPunctuationEnabled;
         HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
@@ -841,7 +842,8 @@ public partial class SettingsWindow : Window
             AutoStartWithWindows = AutoStartCheckBox.IsChecked == true,
             AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true,
             NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
-            NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true
+            NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true,
+            SpokenPunctuationEnabled = SpokenPunctuationCheckBox.IsChecked == true
         };
 
         _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };

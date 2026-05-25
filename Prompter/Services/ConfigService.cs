@@ -150,6 +150,15 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 5)
+        {
+            migrated = migrated with
+            {
+                Version = 5,
+                SpokenPunctuationEnabled = false
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),

@@ -230,13 +230,18 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _uiManager.UpdateProcessingStage("Transcribing…");
         var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
         rawText = rawText.Trim();
-        _logger.Log($"Transcription complete using Whisper model '{_modelManager.LoadedWhisperModelAlias ?? "unknown"}'.");
         if (string.IsNullOrWhiteSpace(rawText))
         {
             _logger.Log("Transcription empty.");
             _uiManager.HideRecordingOverlay();
             return;
         }
+        var trueRawText = rawText;
+        if (cfg.SpokenPunctuationEnabled)
+        {
+            rawText = SpokenPunctuationProcessor.Process(rawText, cfg.Language, _logger);
+        }
+        _logger.Log($"Transcription complete using Whisper model '{_modelManager.LoadedWhisperModelAlias ?? "unknown"}'.");
 
         string finalText;
         bool usedFallback = false;
@@ -269,7 +274,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                     : "Chat model not loaded — raw text shown below";
             }
 
-            finalText = $"[RAW]{Environment.NewLine}{rawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
+            finalText = $"[RAW]{Environment.NewLine}{trueRawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
         }
         else if (mode?.SkipFormatting == true || !_modelManager.ChatReady)
         {

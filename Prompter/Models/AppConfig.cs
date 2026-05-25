@@ -45,7 +45,7 @@ public record PreviewToastSpecificConfig
 
 public record AppConfig
 {
-    public int Version { get; init; } = 4;
+    public int Version { get; init; } = 5;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public string DefaultModeId { get; init; } = ModeDefaults.StandardId;
@@ -55,6 +55,7 @@ public record AppConfig
     public bool AudioFeedbackEnabled { get; init; } = false;
     public bool NotificationsEnabled { get; init; } = true;
     public bool NotifyOnOutputReady { get; init; } = true;
+    public bool SpokenPunctuationEnabled { get; init; } = false;
     public string Language { get; init; } = "en";
     public string ChatModelId { get; init; } = "phi-3.5-mini";
     public string WhisperModelId { get; init; } = "whisper-tiny";

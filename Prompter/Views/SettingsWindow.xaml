@@ -482,6 +482,7 @@
                         <CheckBox x:Name="AudioFeedbackCheckBox" Content="Play audio feedback sounds when starting/stopping dictation"/>
                         <CheckBox x:Name="NotificationsCheckBox" Content="Show Windows balloon notifications for status updates"/>
                         <CheckBox x:Name="NotifyOnOutputReadyCheckBox" Content="Show notification popup after text is inserted" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="SpokenPunctuationCheckBox" Content="Replace spoken punctuation commands (comma, period, etc.)" Margin="0,0,0,12"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
