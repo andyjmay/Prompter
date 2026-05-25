@@ -88,6 +88,6 @@ public class AppEventCoordinator : IDisposable
     private void OnRecordingStopped()
     {
         var config = _configService.Load();
-        _pipeline.StopRecordingAndProcess(config.DefaultMode);
+        _pipeline.StopRecordingAndProcess(config.DefaultModeId);
     }
 }

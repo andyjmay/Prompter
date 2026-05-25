@@ -36,14 +36,19 @@ public class ConfigService : IConfigService
             }
 
             var jsonText = File.ReadAllText(_configPath);
-            var deserialized = JsonSerializer.Deserialize<AppConfig>(jsonText, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            using var doc = JsonDocument.Parse(jsonText);
+            var deserialized = JsonSerializer.Deserialize<AppConfig>(doc, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (deserialized is null)
             {
                 _cached = new AppConfig();
                 return _cached;
             }
 
-            _cached = Migrate(deserialized);
+            int rawVersion = 0;
+            if (doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.Number)
+                rawVersion = v.GetInt32();
+
+            _cached = Migrate(deserialized, doc, rawVersion);
             if (_cached != deserialized)
             {
                 SaveToDisk(_cached);
@@ -76,20 +81,72 @@ public class ConfigService : IConfigService
         File.WriteAllText(_configPath, json);
     }
 
-    private static AppConfig Migrate(AppConfig config)
+    private static AppConfig Migrate(AppConfig config, JsonDocument rawDoc, int rawVersion)
     {
         var migrated = config;
-        if (migrated.Version < 2)
+        if (rawVersion < 2)
         {
             migrated = migrated with { Version = 2 };
         }
-        if (migrated.Version < 3)
+        if (rawVersion < 3)
         {
             migrated = migrated with
             {
                 Version = 3,
                 UseCustomWhisper = false,
                 CustomWhisperModelPath = ""
+            };
+        }
+        if (rawVersion < 4)
+        {
+            var modes = new List<ModeConfig>(ModeDefaults.AllBuiltIns);
+            var defaultModeId = ModeDefaults.StandardId;
+
+            var root = rawDoc.RootElement;
+            if (root.TryGetProperty("DefaultMode", out var defaultModeEl))
+            {
+                if (defaultModeEl.ValueKind == JsonValueKind.String)
+                {
+                    defaultModeId = defaultModeEl.GetString()?.ToLowerInvariant() ?? ModeDefaults.StandardId;
+                }
+                else if (defaultModeEl.ValueKind == JsonValueKind.Number && defaultModeEl.TryGetInt32(out var oldModeValue))
+                {
+                    defaultModeId = oldModeValue switch
+                    {
+                        1 => ModeDefaults.FormalId,
+                        2 => ModeDefaults.RawId,
+                        3 => ModeDefaults.DebugId,
+                        _ => ModeDefaults.StandardId
+                    };
+                }
+            }
+
+            if (root.TryGetProperty("CustomSystemPrompt", out var customPromptEl) && customPromptEl.ValueKind == JsonValueKind.String)
+            {
+                var oldCustomPrompt = customPromptEl.GetString();
+                if (!string.IsNullOrWhiteSpace(oldCustomPrompt))
+                {
+                    var customMode = new ModeConfig
+                    {
+                        Id = "custom",
+                        Name = "Custom",
+                        SystemPrompt = oldCustomPrompt.Trim(),
+                        SkipFormatting = false,
+                        ShowDiagnosticOutput = false,
+                        IsBuiltIn = false
+                    };
+                    modes.Add(customMode);
+                    defaultModeId = customMode.Id;
+                }
+            }
+
+            modes = ModeDefaults.EnsureBuiltInsPresent(modes);
+
+            migrated = migrated with
+            {
+                Version = 4,
+                DefaultModeId = defaultModeId,
+                Modes = modes
             };
         }
 

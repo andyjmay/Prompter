@@ -1,9 +1,40 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
 using Prompter.Models;
 using Prompter.Services;
 
 namespace Prompter.ViewModels;
+
+public class ModeMenuItem : System.ComponentModel.INotifyPropertyChanged
+{
+    private bool _isSelected;
+
+    public string Id { get; }
+    public string Name { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected != value)
+            {
+                _isSelected = value;
+                OnPropertyChanged(nameof(IsSelected));
+            }
+        }
+    }
+
+    public ModeMenuItem(string id, string name)
+    {
+        Id = id;
+        Name = name;
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+}
 
 public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotifyPropertyChanged
 {
@@ -24,15 +55,12 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
 
     private string? _lastOutput;
 
+    public ObservableCollection<ModeMenuItem> ModeMenuItems { get; } = new();
+
     public ICommand OpenSettingsCommand { get; }
     public ICommand ExitCommand { get; }
     public ICommand SetModeCommand { get; }
     public ICommand CopyLastOutputCommand { get; }
-
-    public bool IsStandard => _config.DefaultMode == FormatMode.Standard;
-    public bool IsFormal => _config.DefaultMode == FormatMode.Formal;
-    public bool IsRaw => _config.DefaultMode == FormatMode.Raw;
-    public bool IsDebug => _config.DefaultMode == FormatMode.Debug;
 
     public TrayIconViewModel(
         IConfigService configService,
@@ -67,15 +95,26 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         SetModeCommand = new RelayCommand(param => SetMode(param?.ToString()));
         CopyLastOutputCommand = new RelayCommand(_ => CopyLastOutput());
 
+        RefreshModeMenuItems();
+
         _onConfigChanged = (_, cfg) =>
         {
             _config = cfg;
-            OnPropertyChanged(nameof(IsStandard));
-            OnPropertyChanged(nameof(IsFormal));
-            OnPropertyChanged(nameof(IsRaw));
-            OnPropertyChanged(nameof(IsDebug));
+            RefreshModeMenuItems();
         };
         _configService.ConfigChanged += _onConfigChanged;
+    }
+
+    private void RefreshModeMenuItems()
+    {
+        ModeMenuItems.Clear();
+        foreach (var mode in _config.Modes)
+        {
+            ModeMenuItems.Add(new ModeMenuItem(mode.Id, mode.Name)
+            {
+                IsSelected = mode.Id.Equals(_config.DefaultModeId, StringComparison.OrdinalIgnoreCase)
+            });
+        }
     }
 
     public void Initialize()
@@ -142,16 +181,19 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         }
     }
 
-    private void SetMode(string? modeName)
+    private void SetMode(string? modeId)
     {
-        if (Enum.TryParse<FormatMode>(modeName, out var mode))
+        if (string.IsNullOrWhiteSpace(modeId)) return;
+
+        var mode = _config.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
+        if (mode == null) return;
+
+        _config = _config with { DefaultModeId = modeId };
+        _ = _configService.SaveAsync(_config);
+
+        foreach (var item in ModeMenuItems)
         {
-            _config = _config with { DefaultMode = mode };
-            _ = _configService.SaveAsync(_config);
-            OnPropertyChanged(nameof(IsStandard));
-            OnPropertyChanged(nameof(IsFormal));
-            OnPropertyChanged(nameof(IsRaw));
-            OnPropertyChanged(nameof(IsDebug));
+            item.IsSelected = item.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase);
         }
     }
 

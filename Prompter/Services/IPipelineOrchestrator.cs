@@ -1,5 +1,3 @@
-using Prompter.Models;
-
 namespace Prompter.Services;
 
 public interface IPipelineOrchestrator : IDisposable
@@ -8,5 +6,5 @@ public interface IPipelineOrchestrator : IDisposable
     event Action<string, string>? ShowBalloon;
 
     void StartRecording();
-    void StopRecordingAndProcess(FormatMode mode);
+    void StopRecordingAndProcess(string modeId);
 }

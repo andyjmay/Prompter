@@ -103,7 +103,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             catch (TaskCanceledException) { return; }
             _logger.Log("Pipeline: Max 5-minute duration reached — auto-stopping.");
             var cfg = _configService.Load();
-            StopRecordingAndProcess(cfg.DefaultMode);
+            StopRecordingAndProcess(cfg.DefaultModeId);
         });
 
         _ = Task.Run(async () =>
@@ -132,7 +132,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _uiManager.UpdateAudioLevel(level);
     }
 
-    public void StopRecordingAndProcess(FormatMode mode)
+    public void StopRecordingAndProcess(string modeId)
     {
         lock (_stopLock)
         {
@@ -140,7 +140,14 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _isStopping = true;
         }
 
-        _logger.Log($"Pipeline: StopRecordingAndProcess called with mode '{mode}'.");
+        var cfg = _configService.Load();
+        var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
+        var modeName = mode?.Name ?? modeId;
+        if (mode == null)
+        {
+            _logger.Log($"WARNING: Mode '{modeId}' not found in config. Falling back to default behavior.");
+        }
+        _logger.Log($"Pipeline: StopRecordingAndProcess called with mode '{modeName}' (id: {modeId}).");
         _audioFeedback.PlayStop();
         _maxDurationCts?.Cancel();
         _session?.StopRecording();
@@ -174,7 +181,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             try
             {
-                await ProcessAsync(wavPath, mode, generation);
+                await ProcessAsync(wavPath, modeId, generation);
             }
             catch (Exception ex)
             {
@@ -195,9 +202,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         });
     }
 
-    private async Task ProcessAsync(string wavPath, FormatMode mode, int generation)
+    private async Task ProcessAsync(string wavPath, string modeId, int generation)
     {
         var cfg = _configService.Load();
+        var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(cfg.ProcessingTimeoutSeconds));
 
         _logger.Log("Ensuring models are loaded...");
@@ -233,22 +241,22 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         string finalText;
         bool usedFallback = false;
 
-        if (mode == FormatMode.Debug)
+        if (mode?.ShowDiagnosticOutput == true)
         {
             string formattedText;
             string statusLine;
 
-            if (_modelManager.ChatReady)
+            if (_modelManager.ChatReady && mode?.SkipFormatting != true)
             {
                 _uiManager.UpdateProcessingStage("Formatting…");
                 try
                 {
-                    formattedText = await _textFormatter.CleanupAsync(rawText, FormatMode.Standard, cts.Token);
+                    formattedText = await _textFormatter.CleanupAsync(rawText, modeId, cts.Token);
                     statusLine = "Chat model: " + (_modelManager.LoadedChatModelAlias ?? "unknown");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogException(ex, "CleanupAsync failed in Debug mode");
+                    _logger.LogException(ex, "CleanupAsync failed in diagnostic mode");
                     formattedText = rawText;
                     statusLine = "Chat model failed — raw text shown below";
                 }
@@ -256,14 +264,16 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             else
             {
                 formattedText = rawText;
-                statusLine = "Chat model not loaded — raw text shown below";
+                statusLine = mode?.SkipFormatting == true
+                    ? "Formatting skipped — raw text shown below"
+                    : "Chat model not loaded — raw text shown below";
             }
 
             finalText = $"[RAW]{Environment.NewLine}{rawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
         }
-        else if (mode == FormatMode.Raw || !_modelManager.ChatReady)
+        else if (mode?.SkipFormatting == true || !_modelManager.ChatReady)
         {
-            if (mode != FormatMode.Raw)
+            if (mode?.SkipFormatting != true)
             {
                 _logger.Log("Chat model not ready — falling back to Raw.");
                 usedFallback = true;
@@ -275,7 +285,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _uiManager.UpdateProcessingStage("Formatting…");
             try
             {
-                finalText = await _textFormatter.CleanupAsync(rawText, mode, cts.Token);
+                finalText = await _textFormatter.CleanupAsync(rawText, modeId, cts.Token);
             }
             catch (Exception ex)
             {

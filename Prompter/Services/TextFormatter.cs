@@ -15,13 +15,20 @@ public class TextFormatter : ITextFormatter
         _fileLogger = fileLogger;
     }
 
-    public async Task<string> CleanupAsync(string rawText, FormatMode mode, CancellationToken ct)
+    public async Task<string> CleanupAsync(string rawText, string modeId, CancellationToken ct)
     {
         if (!_modelManager.ChatReady)
             throw new InvalidOperationException("Chat model not loaded");
 
+        var cfg = _configService.Load();
+        var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
+        if (mode == null)
+        {
+            _fileLogger.Log($"WARNING: Mode '{modeId}' not found in config. Using standard system prompt.");
+        }
+        var systemPrompt = mode?.SystemPrompt ?? ModeDefaults.Standard.SystemPrompt;
+
         var chatClient = await _modelManager.GetChatClientAsync();
-        var systemPrompt = GetSystemPrompt(mode);
 
         var messages = new List<ChatMessage>
         {
@@ -29,7 +36,7 @@ public class TextFormatter : ITextFormatter
             new("user", $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}")
         };
 
-        _fileLogger.Log($"Formatting with chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' in '{mode}' mode.");
+        _fileLogger.Log($"Formatting with chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' in '{mode?.Name ?? modeId}' mode.");
         var result = await chatClient.CompleteAsync(messages, 0.0f, ct);
         if (string.IsNullOrEmpty(result))
         {
@@ -42,21 +49,6 @@ public class TextFormatter : ITextFormatter
         result = RejectIfHallucinated(rawText, result);
         _fileLogger.Log($"Chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' cleaned text: {result}");
         return result;
-    }
-
-    private string GetSystemPrompt(FormatMode mode)
-    {
-        var cfg = _configService.Load();
-        if (!string.IsNullOrWhiteSpace(cfg.CustomSystemPrompt))
-            return cfg.CustomSystemPrompt;
-
-        return mode switch
-        {
-            Models.FormatMode.Standard => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning. Never add trailing commentary or ellipsis.",
-            Models.FormatMode.Formal => "You are a spelling and punctuation corrector. Remove filler words and expand contractions. Do not rewrite sentences or change meaning. Do not add or remove content. Never add trailing commentary or ellipsis.",
-            Models.FormatMode.Raw => "Return the text exactly as provided, with no changes.",
-            _ => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning. Never add trailing commentary or ellipsis."
-        };
     }
 
     private static string RejectIfHallucinated(string rawText, string result)

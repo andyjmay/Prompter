@@ -18,11 +18,17 @@
                          MenuActivation="RightClick">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
-                    <MenuItem Header="Mode">
-                        <MenuItem Header="Standard" IsChecked="{Binding IsStandard, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Standard"/>
-                        <MenuItem Header="Formal" IsChecked="{Binding IsFormal, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Formal"/>
-                        <MenuItem Header="Raw" IsChecked="{Binding IsRaw, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Raw"/>
-                        <MenuItem Header="Debug" IsChecked="{Binding IsDebug, Mode=OneWay}" Command="{Binding SetModeCommand}" CommandParameter="Debug"/>
+                    <MenuItem Header="Mode" ItemsSource="{Binding ModeMenuItems}">
+                        <MenuItem.ItemContainerStyle>
+                            <Style TargetType="MenuItem">
+                                <Setter Property="Header" Value="{Binding Name}"/>
+                                <Setter Property="IsChecked" Value="{Binding IsSelected, Mode=OneWay}"/>
+                                <Setter Property="IsCheckable" Value="True"/>
+                                <Setter Property="StaysOpenOnClick" Value="False"/>
+                                <Setter Property="Command" Value="{Binding DataContext.SetModeCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                <Setter Property="CommandParameter" Value="{Binding Id}"/>
+                            </Style>
+                        </MenuItem.ItemContainerStyle>
                     </MenuItem>
                     <Separator/>
                     <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>

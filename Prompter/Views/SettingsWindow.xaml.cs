@@ -64,20 +64,20 @@ public partial class SettingsWindow : Window
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
             ? _config.HotkeyModifiers
             : $"{_config.HotkeyModifiers} + {_config.HotkeyKey}";
-        ModeComboBox.SelectedIndex = (int)_config.DefaultMode;
         TtlSlider.Value = _config.ModelIdleTtlMinutes;
         TtlValue.Text = _config.ModelIdleTtlMinutes.ToString();
         AutoStartCheckBox.IsChecked = _config.AutoStartWithWindows;
         AudioFeedbackCheckBox.IsChecked = _config.AudioFeedbackEnabled;
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
         NotifyOnOutputReadyCheckBox.IsChecked = _config.NotifyOnOutputReady;
-        CustomPromptTextBox.Text = _config.CustomSystemPrompt ?? string.Empty;
         HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
         PasteThresholdTextBox.Text = _config.PasteThresholdCharacters.ToString();
 
         TtlSlider.ValueChanged += (_, e) => TtlValue.Text = e.NewValue.ToString("F0");
+
+        RefreshModesList();
 
         _ = PopulateChatModelComboBoxAsync();
         _ = PopulateWhisperModelComboBoxAsync();
@@ -162,6 +162,166 @@ public partial class SettingsWindow : Window
         if (string.IsNullOrWhiteSpace(accent)) accent = null;
         var opacity = OpacitySlider.Value / 100.0;
         return new OverlayStyleConfig { Theme = theme, AccentColor = accent, BackgroundOpacity = opacity };
+    }
+
+    private void RefreshModesList()
+    {
+        var selectedId = (ModesListView.SelectedItem as ModeListItem)?.Id;
+
+        var items = _config.Modes.Select(m => new ModeListItem
+        {
+            Id = m.Id,
+            Name = m.Name,
+            SystemPrompt = m.SystemPrompt,
+            SkipFormatting = m.SkipFormatting,
+            ShowDiagnosticOutput = m.ShowDiagnosticOutput,
+            IsDefault = m.Id.Equals(_config.DefaultModeId, StringComparison.OrdinalIgnoreCase),
+            IsBuiltIn = m.IsBuiltIn
+        }).ToList();
+
+        ModesListView.ItemsSource = items;
+
+        if (selectedId != null)
+        {
+            var toSelect = items.FirstOrDefault(i => i.Id.Equals(selectedId, StringComparison.OrdinalIgnoreCase));
+            if (toSelect != null)
+            {
+                ModesListView.SelectedItem = toSelect;
+                ModesListView.ScrollIntoView(toSelect);
+            }
+        }
+    }
+
+    private void AddModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ModeEditorDialog();
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            if (_config.Modes.Any(m => m.Id.Equals(dialog.Result.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show(
+                    $"A mode with the ID '{dialog.Result.Id}' already exists. Please choose a different name.",
+                    "Duplicate Mode",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+            _config = _config with
+            {
+                Modes = new List<ModeConfig>(_config.Modes) { dialog.Result }
+            };
+            RefreshModesList();
+        }
+    }
+
+    private void EditModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ModesListView.SelectedItem as ModeListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a mode from the list first.", "Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var mode = _config.Modes.FirstOrDefault(m => m.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+        if (mode == null) return;
+
+        var dialog = new ModeEditorDialog(mode);
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            var updated = new List<ModeConfig>(_config.Modes);
+            var idx = updated.FindIndex(m => m.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                updated[idx] = dialog.Result;
+                _config = _config with { Modes = updated };
+                RefreshModesList();
+            }
+        }
+    }
+
+    private void SetDefaultModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ModesListView.SelectedItem as ModeListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a mode from the list first.", "Set Default", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _config = _config with { DefaultModeId = selected.Id };
+        RefreshModesList();
+    }
+
+    private void ResetModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ModesListView.SelectedItem as ModeListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a mode from the list first.", "Reset Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (!selected.IsBuiltIn)
+        {
+            MessageBox.Show("Only built-in modes can be reset to defaults.", "Reset Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var defaultMode = ModeDefaults.GetById(selected.Id);
+        if (defaultMode == null) return;
+
+        var result = MessageBox.Show(
+            $"Reset '{selected.Name}' to its default prompt and settings?",
+            "Confirm Reset",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        var updated = new List<ModeConfig>(_config.Modes);
+        var idx = updated.FindIndex(m => m.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+        if (idx >= 0)
+        {
+            updated[idx] = defaultMode;
+            _config = _config with { Modes = updated };
+            RefreshModesList();
+        }
+    }
+
+    private void DeleteModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = ModesListView.SelectedItem as ModeListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a mode from the list first.", "Delete Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (selected.IsBuiltIn)
+        {
+            MessageBox.Show("Built-in modes cannot be deleted.", "Delete Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Delete the custom mode '{selected.Name}'? This cannot be undone.",
+            "Confirm Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        var updated = _config.Modes.Where(m => !m.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).ToList();
+        var newDefaultId = _config.DefaultModeId;
+        if (selected.Id.Equals(newDefaultId, StringComparison.OrdinalIgnoreCase))
+        {
+            newDefaultId = ModeDefaults.StandardId;
+        }
+        _config = _config with { Modes = updated, DefaultModeId = newDefaultId };
+        RefreshModesList();
     }
 
     private async Task PopulateChatModelComboBoxAsync()
@@ -675,17 +835,13 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (ModeComboBox.SelectedIndex >= 0)
-            _config = _config with { DefaultMode = (FormatMode)ModeComboBox.SelectedIndex };
-
         _config = _config with
         {
             ModelIdleTtlMinutes = (int)TtlSlider.Value,
             AutoStartWithWindows = AutoStartCheckBox.IsChecked == true,
             AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true,
             NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
-            NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true,
-            CustomSystemPrompt = string.IsNullOrWhiteSpace(CustomPromptTextBox.Text) ? null : CustomPromptTextBox.Text.Trim()
+            NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true
         };
 
         _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };
@@ -1134,7 +1290,7 @@ public partial class SettingsWindow : Window
             }
 
             TestResultTextBlock.Text = $"Testing {alias}...";
-            var result = await _textFormatter.CleanupAsync(sample, FormatMode.Standard, ct);
+            var result = await _textFormatter.CleanupAsync(sample, ModeDefaults.StandardId, ct);
             var elapsed = sw.Elapsed;
 
             TestResultTextBlock.Text = $"Model: {alias}\nTime: {elapsed.TotalSeconds:F2}s\nOutput: {result}";
@@ -1168,6 +1324,17 @@ public partial class SettingsWindow : Window
             }
         }
     }
+}
+
+public class ModeListItem
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string SystemPrompt { get; set; } = "";
+    public bool SkipFormatting { get; set; }
+    public bool ShowDiagnosticOutput { get; set; }
+    public bool IsDefault { get; set; }
+    public bool IsBuiltIn { get; set; }
 }
 
 public class BoolToTextConverter : System.Windows.Data.IValueConverter
