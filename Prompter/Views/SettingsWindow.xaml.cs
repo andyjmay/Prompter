@@ -34,6 +34,7 @@ public partial class SettingsWindow : Window
     private RecordingOverlay? _previewOverlay;
     private PreviewToast? _previewToast;
     private readonly ITextFormatter _textFormatter;
+    private readonly IInputInjectorService _inputInjectorService;
     private CancellationTokenSource? _testCts;
     private bool _populatingChatModels;
     private bool _populatingWhisperModels;
@@ -48,7 +49,8 @@ public partial class SettingsWindow : Window
         IModelManager modelManager,
         ITextFormatter textFormatter,
         IHuggingFaceService hfService,
-        IGgufModelStore ggufStore)
+        IGgufModelStore ggufStore,
+        IInputInjectorService inputInjectorService)
     {
         InitializeComponent();
         _configService = configService;
@@ -60,6 +62,7 @@ public partial class SettingsWindow : Window
         _textFormatter = textFormatter;
         _hfService = hfService;
         _ggufStore = ggufStore;
+        _inputInjectorService = inputInjectorService;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -469,7 +472,7 @@ public partial class SettingsWindow : Window
 
     private void AddSnippetButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SnippetDialog(_config.Snippets.ToList());
+        var dialog = new SnippetDialog(_inputInjectorService, _config.Snippets.ToList());
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.Result != null)
         {
@@ -490,7 +493,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var dialog = new SnippetDialog(_config.Snippets.ToList(), selected.Entry);
+        var dialog = new SnippetDialog(_inputInjectorService, _config.Snippets.ToList(), selected.Entry);
         dialog.Owner = this;
         if (dialog.ShowDialog() == true && dialog.Result != null)
         {

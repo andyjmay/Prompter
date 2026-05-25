@@ -245,7 +245,20 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             _logger.Log($"Snippet matched: '{matchedSnippet.Trigger}' — injecting expansion.");
             ShowBalloon?.Invoke("Prompter — Snippet inserted", $"Matched '{matchedSnippet.Trigger}'.");
-            await InjectAsync(matchedSnippet.Expansion, generation, cfg);
+            bool useSendKeys = false;
+            if (_injector.ContainsKeyTokens(matchedSnippet.Expansion))
+            {
+                try
+                {
+                    _injector.ValidateExpansion(matchedSnippet.Expansion);
+                    useSendKeys = true;
+                }
+                catch (ArgumentException ex)
+                {
+                    _logger.Log($"Snippet expansion contains invalid key tokens: {ex.Message}");
+                }
+            }
+            await InjectAsync(matchedSnippet.Expansion, generation, cfg, useSendKeys);
             return;
         }
 
@@ -328,19 +341,37 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     }
 
     private async Task InjectAsync(string text, int generation, AppConfig cfg)
-    {
-        _uiManager.UpdateProcessingStage("Typing…");
+        => await InjectAsync(text, generation, cfg, useSendKeys: false);
 
-        var snapshot = _dispatcher.Invoke(() => _clipboard.SaveClipboard());
+    private async Task InjectAsync(string text, int generation, AppConfig cfg, bool useSendKeys)
+    {
+        _uiManager.UpdateProcessingStage(useSendKeys ? "Sending keys…" : "Typing…");
 
         try
         {
-            if (cfg.UseClipboardPaste && text.Length >= cfg.PasteThresholdCharacters)
+            if (useSendKeys)
             {
-                _dispatcher.Invoke(() => _clipboard.CopyText(text));
-                _injector.SimulatePaste();
-                await Task.Delay(150);
-                _logger.Log("Text pasted via clipboard.");
+                _injector.SendKeys(text);
+                _logger.Log("Keys injected via SendKeys.");
+            }
+            else if (cfg.UseClipboardPaste && text.Length >= cfg.PasteThresholdCharacters)
+            {
+                var snapshot = _dispatcher.Invoke(() => _clipboard.SaveClipboard());
+                try
+                {
+                    _dispatcher.Invoke(() => _clipboard.CopyText(text));
+                    _injector.SimulatePaste();
+                    await Task.Delay(150);
+                    _logger.Log("Text pasted via clipboard.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, "Clipboard paste failed");
+                }
+                finally
+                {
+                    _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
+                }
             }
             else
             {
@@ -350,11 +381,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         }
         catch (Exception ex)
         {
-            _logger.LogException(ex, "Text injection/paste failed");
-        }
-        finally
-        {
-            _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
+            _logger.LogException(ex, "Text injection failed");
         }
 
         if (_recordingGeneration == generation)

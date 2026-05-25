@@ -78,7 +78,6 @@
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -89,14 +88,27 @@
             <TextBox x:Name="TriggerTextBox" Padding="8,6"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,16">
-            <TextBlock Text="Expansion Text" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-            <TextBlock Text="The full text that will be inserted when the trigger is recognized." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-        </StackPanel>
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Expansion Text" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+            <TextBlock Grid.Row="1" Text="The full text that will be inserted when the trigger is recognized. Use {Enter}, {Tab}, etc. for special keys." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
+            <TextBox Grid.Row="2" x:Name="ExpansionTextBox" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Padding="8,6" Margin="0,0,0,8"/>
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ComboBox x:Name="KeyComboBox" Grid.Column="0" Padding="6,4" Margin="0,0,8,0"/>
+                <Button x:Name="InsertKeyButton" Grid.Column="1" Content="Insert" Width="80" Click="InsertKeyButton_Click"/>
+            </Grid>
+        </Grid>
 
-        <TextBox x:Name="ExpansionTextBox" Grid.Row="2" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Padding="8,6" Margin="0,0,0,16"/>
-
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton" Content="Cancel" Width="90" Margin="0,0,8,0" Click="CancelButton_Click"/>
             <Button x:Name="SaveButton" Content="Save" Width="90" Click="SaveButton_Click"/>
         </StackPanel>

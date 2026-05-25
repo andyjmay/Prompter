@@ -50,6 +50,7 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
     private readonly IDialogService _dialogService;
     private readonly IHuggingFaceService _hfService;
     private readonly IGgufModelStore _ggufStore;
+    private readonly IInputInjectorService _inputInjectorService;
     private AppConfig _config;
     private readonly EventHandler<AppConfig> _onConfigChanged;
 
@@ -74,7 +75,8 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         ITextFormatter textFormatter,
         IDialogService dialogService,
         IHuggingFaceService hfService,
-        IGgufModelStore ggufStore)
+        IGgufModelStore ggufStore,
+        IInputInjectorService inputInjectorService)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
@@ -88,6 +90,7 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         _dialogService = dialogService;
         _hfService = hfService;
         _ggufStore = ggufStore;
+        _inputInjectorService = inputInjectorService;
         _config = configService.Load();
 
         OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
@@ -138,7 +141,8 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
             _modelManager,
             _textFormatter,
             _hfService,
-            _ggufStore);
+            _ggufStore,
+            _inputInjectorService);
 
         _config = _configService.Load();
 
