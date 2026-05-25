@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows;
 using System.Windows.Threading;
 using Prompter.Models;
 
@@ -19,6 +18,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     private readonly IFileLogger _logger;
     private readonly Dispatcher _dispatcher;
     private readonly IRecordingUIManager _uiManager;
+    private readonly IDialogService _dialogService;
 
     private IRecordingSession? _session;
     private CancellationTokenSource? _maxDurationCts;
@@ -42,7 +42,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         IAudioFeedbackService audioFeedback,
         IFileLogger logger,
         Dispatcher dispatcher,
-        IRecordingUIManager uiManager)
+        IRecordingUIManager uiManager,
+        IDialogService dialogService)
     {
         _recorder = recorder;
         _modelManager = modelManager;
@@ -56,6 +57,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _logger = logger;
         _dispatcher = dispatcher;
         _uiManager = uiManager;
+        _dialogService = dialogService;
     }
 
     public void StartRecording()
@@ -78,11 +80,9 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _logger.LogException(ex, "StartRecording failed");
             _dispatcher.Invoke(() =>
             {
-                MessageBox.Show(
-                    "Could not start recording. Make sure your microphone is not in use by another app (e.g., Teams, Zoom).",
+                _dialogService.ShowWarning(
                     "Prompter — Microphone Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                    "Could not start recording. Make sure your microphone is not in use by another app (e.g., Teams, Zoom).");
             });
             return;
         }
@@ -122,11 +122,9 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _dispatcher.Invoke(() =>
         {
             _uiManager.HideRecordingOverlay();
-            MessageBox.Show(
-                "Recording was interrupted. The microphone may have been disconnected or taken by another app.",
+            _dialogService.ShowWarning(
                 "Prompter — Recording Stopped",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "Recording was interrupted. The microphone may have been disconnected or taken by another app.");
         });
     }
 

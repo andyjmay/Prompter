@@ -50,8 +50,8 @@ internal static class SpokenPunctuationProcessor
         {
             int count = 0;
             string pattern = rule.Spacing == SpacingType.Structural
-                ? $"(?<!\\b(?:a|an|the|this|that)\\s+)(?<!\\w)(\\s*){Regex.Escape(rule.Token)}(\\s*)(?!\\w)"
-                : $"(?<!\\b(?:a|an|the|this|that)\\s+)(?<!\\w)( ?){Regex.Escape(rule.Token)}( ?)(?!\\w)";
+                ? $@"\b(\s*)(?<!\b(?:a|an|the|this|that)\s+){Regex.Escape(rule.Token)}(?=\b)(\s*)"
+                : $@"\b( ?)(?<!\b(?:a|an|the|this|that)\s+){Regex.Escape(rule.Token)}( ?)(?!\w)";
 
             current = Regex.Replace(current, pattern, m =>
             {

@@ -22,6 +22,12 @@ public partial class FileLogger : IFileLogger
         PurgeOldLogs();
     }
 
+    internal FileLogger(string logDir)
+    {
+        _logDir = logDir;
+        Directory.CreateDirectory(_logDir);
+    }
+
     public void Log(string message)
     {
         try

@@ -183,7 +183,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static void ConfigureServices(IServiceCollection services)
+    internal static void ConfigureServices(IServiceCollection services)
     {
         // Core infrastructure
         services.AddSingleton(Dispatcher.CurrentDispatcher);

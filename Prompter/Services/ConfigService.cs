@@ -10,14 +10,23 @@ public class ConfigService : IConfigService
     private readonly string _configPath;
     private AppConfig? _cached;
     private readonly object _cacheLock = new();
+    private readonly IFileLogger? _logger;
 
     public event EventHandler<AppConfig>? ConfigChanged;
 
-    public ConfigService()
+    public ConfigService(IFileLogger? logger = null)
     {
+        _logger = logger;
         _configDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Prompter");
+        _configPath = Path.Combine(_configDir, "config.json");
+    }
+
+    internal ConfigService(string configDir, IFileLogger? logger = null)
+    {
+        _logger = logger;
+        _configDir = configDir;
         _configPath = Path.Combine(_configDir, "config.json");
     }
 
@@ -35,25 +44,41 @@ public class ConfigService : IConfigService
                 return _cached;
             }
 
-            var jsonText = File.ReadAllText(_configPath);
-            using var doc = JsonDocument.Parse(jsonText);
-            var deserialized = JsonSerializer.Deserialize<AppConfig>(doc, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            if (deserialized is null)
+            string jsonText;
+            JsonDocument doc;
+            try
             {
+                jsonText = File.ReadAllText(_configPath);
+                doc = JsonDocument.Parse(jsonText);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogException(ex, "ConfigService.Load - corrupt config reset to defaults");
                 _cached = new AppConfig();
+                SaveToDisk(_cached);
                 return _cached;
             }
 
-            int rawVersion = 0;
-            if (doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.Number)
-                rawVersion = v.GetInt32();
-
-            _cached = Migrate(deserialized, doc, rawVersion);
-            if (_cached != deserialized)
+            using (doc)
             {
-                SaveToDisk(_cached);
+                var deserialized = JsonSerializer.Deserialize<AppConfig>(doc, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (deserialized is null)
+                {
+                    _cached = new AppConfig();
+                    return _cached;
+                }
+
+                int rawVersion = 0;
+                if (doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.Number)
+                    rawVersion = v.GetInt32();
+
+                _cached = Migrate(deserialized, doc, rawVersion);
+                if (_cached != deserialized)
+                {
+                    SaveToDisk(_cached);
+                }
+                return _cached;
             }
-            return _cached;
         }
     }
 

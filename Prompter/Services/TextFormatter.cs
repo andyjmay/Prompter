@@ -76,7 +76,7 @@ public class TextFormatter : ITextFormatter
         return result;
     }
 
-    private static string RejectIfHallucinated(string rawText, string result)
+    internal static string RejectIfHallucinated(string rawText, string result)
     {
         if (string.IsNullOrWhiteSpace(result)) return rawText;
 
@@ -105,7 +105,7 @@ public class TextFormatter : ITextFormatter
         return result;
     }
 
-    private static string StripOutputWrappers(string text, string rawText)
+    internal static string StripOutputWrappers(string text, string rawText)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
 
@@ -210,7 +210,7 @@ public class TextFormatter : ITextFormatter
     /// If the result has trailing words not present in the raw text, and they look like artifacts
     /// (contain ellipsis, question marks, or are very short), they are stripped.
     /// </summary>
-    private static string StripTrailingArtifactsByRawAlignment(string result, string rawText)
+    internal static string StripTrailingArtifactsByRawAlignment(string result, string rawText)
     {
         if (string.IsNullOrWhiteSpace(result) || string.IsNullOrWhiteSpace(rawText))
             return result;
