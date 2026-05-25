@@ -119,8 +119,8 @@ public class RecordingSession : IRecordingSession
             sum += normalized * normalized;
         }
         double rms = Math.Sqrt(sum / sampleCount);
-        // Apply slight scaling to make quiet speech visible (clamp to 0-1)
-        return Math.Min(rms * 3.0, 1.0);
+        // Scale up aggressively so normal speech fills most of the bar and quiet speech is still visible.
+        return Math.Min(rms * 25.0 + 0.05, 1.0);
     }
 
     public void StopRecording()

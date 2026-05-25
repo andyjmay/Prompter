@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Prompter.Models;
 using Prompter.Services;
@@ -25,14 +27,36 @@ public partial class PreviewToast : Window, IDisposable
         var brushes = ThemeResolver.Resolve(style);
         RootBorder.Background = brushes.ToastBackground;
         RootBorder.BorderBrush = brushes.ToastBorder;
+        RootBorder.CornerRadius = new CornerRadius(style.CornerRadius);
+        RootBorder.Padding = new Thickness(style.Padding);
+
+        if (style.ShadowEnabled)
+        {
+            RootBorder.Effect = new DropShadowEffect
+            {
+                Color = Colors.Black,
+                Opacity = 0.3,
+                BlurRadius = 12,
+                ShadowDepth = 4
+            };
+        }
+
         TitleText.Foreground = brushes.PrimaryText;
+        TitleText.FontFamily = new System.Windows.Media.FontFamily(style.FontFamily);
+        TitleText.FontSize = style.ToastTitleFontSize;
+
         OutputText.Foreground = brushes.SecondaryText;
+        OutputText.FontFamily = new System.Windows.Media.FontFamily(style.FontFamily);
+        OutputText.FontSize = style.ToastBodyFontSize;
+
         CopyButton.Background = brushes.ButtonBackground;
         CopyButton.Foreground = brushes.PrimaryText;
         CopyButton.BorderBrush = brushes.ButtonBorder;
         DismissButton.Background = brushes.ButtonBackground;
         DismissButton.Foreground = brushes.PrimaryText;
         DismissButton.BorderBrush = brushes.ButtonBorder;
+
+        MaxWidth = config.MaxWidth;
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(config.DurationSeconds) };
         _timer.Tick += (_, _) =>

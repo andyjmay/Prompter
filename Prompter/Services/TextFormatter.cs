@@ -104,6 +104,7 @@ public class TextFormatter : ITextFormatter
         result = StripOutputWrappers(result, rawText);
         result = StripTrailingArtifactsByRawAlignment(result, rawText);
         result = RejectIfHallucinated(rawText, result, modeId, cleaningActive, listFormattingActive);
+        result = StripSpecialTokens(result);
 
         if (cleaningActive)
         {
@@ -216,6 +217,19 @@ public class TextFormatter : ITextFormatter
         var lines = text.Split('\n');
         var first = lines[0].Trim();
 
+        // Strip leading markdown code fence line (e.g. ``` or ```text)
+        if (first.Length >= 3 && first.TakeWhile(c => c == '`').Count() >= 3)
+        {
+            if (lines.Length > 1)
+            {
+                lines = lines[1..];
+            }
+            else
+            {
+                lines[0] = first.TrimStart('`').TrimStart();
+            }
+        }
+
         var prefixes = new[]
         {
             "Here is the cleaned text:",
@@ -286,12 +300,26 @@ public class TextFormatter : ITextFormatter
         }
 
         var result = string.Join("\n", lines).Trim();
-        if ((result.StartsWith('"') && result.EndsWith('"')) ||
-            (result.StartsWith('\'') && result.EndsWith('\'')) ||
-            (result.StartsWith('`') && result.EndsWith('`')))
+
+        // Strip all layers of surrounding quotes or backticks
+        while (result.Length > 2 &&
+               ((result[0] == '"' && result[^1] == '"') ||
+                (result[0] == '\'' && result[^1] == '\'') ||
+                (result[0] == '`' && result[^1] == '`')))
         {
-            if (result.Length > 2)
-                result = result[1..^1].Trim();
+            result = result[1..^1].Trim();
+        }
+
+        // Strip trailing attached backticks even if text doesn't start with them
+        if (result.Length > 0 && result[^1] == '`')
+        {
+            int trailingBackticks = 0;
+            for (int i = result.Length - 1; i >= 0 && result[i] == '`'; i--)
+                trailingBackticks++;
+            if (trailingBackticks >= 3)
+            {
+                result = result[..^trailingBackticks].TrimEnd();
+            }
         }
 
         // Strip trailing ellipsis/continuation markers unless raw text also ends with them
@@ -343,7 +371,19 @@ public class TextFormatter : ITextFormatter
             }
         }
 
-        var unmatchedCount = resultWords.Length - 1 - resultIdx;
+        // Bug fix: if the very last word didn't match, resultIdx never moved, making unmatchedCount == 0.
+        // In that case we still want to examine the trailing words for artifacts.
+        int unmatchedCount;
+        if (matchedTrailingWords == 0)
+        {
+            unmatchedCount = Math.Min(6, resultWords.Length);
+            resultIdx = resultWords.Length - unmatchedCount - 1;
+        }
+        else
+        {
+            unmatchedCount = resultWords.Length - 1 - resultIdx;
+        }
+
         if (unmatchedCount > 0 && unmatchedCount <= 6)
         {
             var trailingWords = resultWords[(resultIdx + 1)..];
@@ -354,7 +394,7 @@ public class TextFormatter : ITextFormatter
                                      trailingFragment.Contains("…", StringComparison.Ordinal) ||
                                      trailingFragment.Contains("?", StringComparison.Ordinal) ||
                                      (trailingFragment.Contains("!", StringComparison.Ordinal) && !rawText.TrimEnd().EndsWith('!')) ||
-                                     trailingWords.Any(w => w.StartsWith('<') && w.EndsWith('>')); // token leakage like <|im_end|>
+                                     trailingWords.Any(w => w.StartsWith('<') && w.EndsWith('>')); // token leakage like  
 
             if (looksLikeArtifact)
             {
@@ -369,6 +409,23 @@ public class TextFormatter : ITextFormatter
         }
 
         return result;
+    }
+
+    private static readonly Regex SpecialTokenRegex = new(
+        @"<\|(?:im_end|im_start|endoftext|eot_id|assistant|user|system|system_message| ToolCalls|finish_reason|stop|\w+)\|>" +
+        @"|</s>|\[DICTATED_TEXT_(?:START|END)\]",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static string StripSpecialTokens(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        text = SpecialTokenRegex.Replace(text, "");
+        // Collapse any leftover whitespace/newlines created by the removal
+        text = Regex.Replace(text, @"[ \t]*\r?\n[ \t\r\n]*", "\n");
+        text = Regex.Replace(text, @"  +", " ");
+        return text.Trim();
     }
 
     internal static string StripFillers(string text, HashSet<string> protectedWords)

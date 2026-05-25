@@ -31,8 +31,8 @@ public static class OverlayPositioner
             dipBottom = br.Y;
         }
 
-        double windowWidth = window.Width;
-        double windowHeight = window.Height;
+        double windowWidth = double.IsNaN(window.Width) ? window.ActualWidth : window.Width;
+        double windowHeight = double.IsNaN(window.Height) ? window.ActualHeight : window.Height;
 
         double left = anchor switch
         {

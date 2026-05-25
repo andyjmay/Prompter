@@ -23,7 +23,8 @@ public static class ThemeResolver
     public static ThemeBrushes Resolve(OverlayStyleConfig style)
     {
         var theme = style.Theme;
-        double opacity = Math.Clamp(style.BackgroundOpacity, 0.0, 1.0);
+        double overlayOpacity = Math.Clamp(style.BackgroundOpacity, 0.0, 1.0);
+        double toastOpacity = Math.Clamp(style.ToastOpacity, 0.0, 1.0);
 
         Color overlayBg, overlayBorder, accent, processingAccent, primaryText, secondaryText, toastBg, toastBorder, buttonBg, buttonBorder;
 
@@ -87,7 +88,29 @@ public static class ThemeResolver
             accent = customAccent;
         }
 
-        overlayBg = WithOpacity(overlayBg, opacity);
+        if (!string.IsNullOrWhiteSpace(style.TextColor) && TryParseColor(style.TextColor, out var customText))
+        {
+            primaryText = customText;
+            secondaryText = customText;
+        }
+
+        if (!string.IsNullOrWhiteSpace(style.ProcessingAccentColor) && TryParseColor(style.ProcessingAccentColor, out var customProcessing))
+        {
+            processingAccent = customProcessing;
+        }
+
+        if (!string.IsNullOrWhiteSpace(style.OverlayBackgroundColor) && TryParseColor(style.OverlayBackgroundColor, out var customOverlayBg))
+        {
+            overlayBg = customOverlayBg;
+        }
+
+        if (!string.IsNullOrWhiteSpace(style.ToastBackgroundColor) && TryParseColor(style.ToastBackgroundColor, out var customToastBg))
+        {
+            toastBg = customToastBg;
+        }
+
+        overlayBg = WithOpacity(overlayBg, overlayOpacity);
+        toastBg = WithOpacity(toastBg, toastOpacity);
 
         return new ThemeBrushes
         {
@@ -126,11 +149,11 @@ public static class ThemeResolver
         throw new FormatException($"Invalid hex color format: {hex}");
     }
 
-    private static bool TryParseColor(string hex, out Color color)
+    private static bool TryParseColor(string value, out Color color)
     {
         try
         {
-            color = FromHex(hex);
+            color = (Color)ColorConverter.ConvertFromString(value);
             return true;
         }
         catch

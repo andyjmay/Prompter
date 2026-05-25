@@ -184,6 +184,51 @@ public class TextFormatterSafeguardTests
         Assert.Equal("Hello world", result);
     }
 
+    [Fact]
+    public void StripOutputWrappers_StripsLeadingFenceLine()
+    {
+        var raw = "Hello world";
+        var text = "```\nHello world";
+        var result = TextFormatter.StripOutputWrappers(text, raw);
+        Assert.Equal("Hello world", result);
+    }
+
+    [Fact]
+    public void StripOutputWrappers_StripsLeadingFenceWithLanguageTag()
+    {
+        var raw = "Hello world";
+        var text = "```text\nHello world";
+        var result = TextFormatter.StripOutputWrappers(text, raw);
+        Assert.Equal("Hello world", result);
+    }
+
+    [Fact]
+    public void StripOutputWrappers_StripsMultiLayerBacktickWrapping()
+    {
+        var raw = "Hello world";
+        var text = "```Hello world```";
+        var result = TextFormatter.StripOutputWrappers(text, raw);
+        Assert.Equal("Hello world", result);
+    }
+
+    [Fact]
+    public void StripOutputWrappers_StripsTrailingAttachedBackticks()
+    {
+        var raw = "Hello world";
+        var text = "Hello world```";
+        var result = TextFormatter.StripOutputWrappers(text, raw);
+        Assert.Equal("Hello world", result);
+    }
+
+    [Fact]
+    public void StripOutputWrappers_StripsFourBacktickFenceLine()
+    {
+        var raw = "Hello world";
+        var text = "Hello world\n````";
+        var result = TextFormatter.StripOutputWrappers(text, raw);
+        Assert.Equal("Hello world", result);
+    }
+
     #endregion
 
     #region StripTrailingArtifactsByRawAlignment

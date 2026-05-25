@@ -21,6 +21,13 @@ public enum OverlayAnchor
     BottomRight
 }
 
+public enum OverlayPulseSpeed
+{
+    Slow,
+    Normal,
+    Fast
+}
+
 public record OverlayPlacementConfig
 {
     public OverlayAnchor Anchor { get; init; } = OverlayAnchor.TopCenter;
@@ -34,18 +41,35 @@ public record OverlayStyleConfig
 {
     public OverlayTheme Theme { get; init; } = OverlayTheme.Dark;
     public string? AccentColor { get; init; } = null;
+    public string? TextColor { get; init; } = null;
+    public string? ProcessingAccentColor { get; init; } = null;
+    public string? OverlayBackgroundColor { get; init; } = null;
+    public string? ToastBackgroundColor { get; init; } = null;
+    public string FontFamily { get; init; } = "Segoe UI";
+    public int OverlayFontSize { get; init; } = 18;
+    public int ToastTitleFontSize { get; init; } = 14;
+    public int ToastBodyFontSize { get; init; } = 12;
+    public bool ShowStatusText { get; init; } = true;
+    public string ListeningLabel { get; init; } = "Listening...";
+    public string ProcessingLabel { get; init; } = "Processing…";
     public double BackgroundOpacity { get; init; } = 0.8;
+    public double ToastOpacity { get; init; } = 1.0;
+    public int CornerRadius { get; init; } = 16;
+    public int Padding { get; init; } = 16;
+    public bool ShadowEnabled { get; init; } = false;
+    public OverlayPulseSpeed PulseSpeed { get; init; } = OverlayPulseSpeed.Normal;
 }
 
 public record PreviewToastSpecificConfig
 {
     public OverlayPlacementConfig Placement { get; init; } = new() { Anchor = OverlayAnchor.BottomRight, OffsetX = -16, OffsetY = -16 };
     public int DurationSeconds { get; init; } = 3;
+    public int MaxWidth { get; init; } = 500;
 }
 
 public record AppConfig
 {
-    public int Version { get; init; } = 11;
+    public int Version { get; init; } = 12;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public string DefaultModeId { get; init; } = ModeDefaults.StandardId;

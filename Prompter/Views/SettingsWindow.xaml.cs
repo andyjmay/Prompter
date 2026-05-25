@@ -118,6 +118,8 @@ public partial class SettingsWindow : Window
         ShowPreviewToastCheckBox.IsChecked = _config.PreviewToast.Placement.Enabled;
         ToastDurationSlider.Value = _config.PreviewToast.DurationSeconds;
         ToastDurationValue.Text = _config.PreviewToast.DurationSeconds.ToString();
+        MaxWidthSlider.Value = _config.PreviewToast.MaxWidth;
+        MaxWidthValue.Text = _config.PreviewToast.MaxWidth.ToString();
 
         foreach (var theme in Enum.GetValues<OverlayTheme>())
         {
@@ -125,17 +127,98 @@ public partial class SettingsWindow : Window
         }
         ThemeComboBox.SelectedItem = _config.OverlayStyle.Theme.ToString();
         AccentColorTextBox.Text = _config.OverlayStyle.AccentColor ?? string.Empty;
+        TextColorTextBox.Text = _config.OverlayStyle.TextColor ?? string.Empty;
+        ProcessingAccentColorTextBox.Text = _config.OverlayStyle.ProcessingAccentColor ?? string.Empty;
+        OverlayBackgroundColorTextBox.Text = _config.OverlayStyle.OverlayBackgroundColor ?? string.Empty;
+        ToastBackgroundColorTextBox.Text = _config.OverlayStyle.ToastBackgroundColor ?? string.Empty;
+
+        var commonFonts = new[] { "Segoe UI", "Segoe UI Variable", "Arial", "Calibri", "Cambria", "Consolas", "Cascadia Code", "Courier New", "Georgia", "Impact", "Lucida Console", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana" };
+        foreach (var font in commonFonts)
+        {
+            FontFamilyComboBox.Items.Add(font);
+        }
+        FontFamilyComboBox.Text = _config.OverlayStyle.FontFamily;
+
+        OverlayFontSizeSlider.Value = _config.OverlayStyle.OverlayFontSize;
+        OverlayFontSizeValue.Text = _config.OverlayStyle.OverlayFontSize.ToString();
+        ToastTitleFontSizeSlider.Value = _config.OverlayStyle.ToastTitleFontSize;
+        ToastTitleFontSizeValue.Text = _config.OverlayStyle.ToastTitleFontSize.ToString();
+        ToastBodyFontSizeSlider.Value = _config.OverlayStyle.ToastBodyFontSize;
+        ToastBodyFontSizeValue.Text = _config.OverlayStyle.ToastBodyFontSize.ToString();
+
         OpacitySlider.Value = (int)Math.Round(_config.OverlayStyle.BackgroundOpacity * 100);
         OpacityValue.Text = OpacitySlider.Value.ToString("F0") + "%";
+        ToastOpacitySlider.Value = (int)Math.Round(_config.OverlayStyle.ToastOpacity * 100);
+        ToastOpacityValue.Text = ToastOpacitySlider.Value.ToString("F0") + "%";
+        CornerRadiusSlider.Value = _config.OverlayStyle.CornerRadius;
+        CornerRadiusValue.Text = _config.OverlayStyle.CornerRadius.ToString();
+        PaddingSlider.Value = _config.OverlayStyle.Padding;
+        PaddingValue.Text = _config.OverlayStyle.Padding.ToString();
+
+        ShadowEnabledCheckBox.IsChecked = _config.OverlayStyle.ShadowEnabled;
+        ShowStatusTextCheckBox.IsChecked = _config.OverlayStyle.ShowStatusText;
+        ListeningLabelTextBox.Text = _config.OverlayStyle.ListeningLabel;
+        ProcessingLabelTextBox.Text = _config.OverlayStyle.ProcessingLabel;
+
+        foreach (var speed in Enum.GetValues<OverlayPulseSpeed>())
+        {
+            PulseSpeedComboBox.Items.Add(speed.ToString());
+        }
+        PulseSpeedComboBox.SelectedItem = _config.OverlayStyle.PulseSpeed.ToString();
 
         ToastDurationSlider.ValueChanged += (_, e) => ToastDurationValue.Text = e.NewValue.ToString("F0");
+        MaxWidthSlider.ValueChanged += (_, e) => MaxWidthValue.Text = e.NewValue.ToString("F0");
         OpacitySlider.ValueChanged += (_, e) =>
         {
             OpacityValue.Text = e.NewValue.ToString("F0") + "%";
             UpdateMockups();
         };
+        ToastOpacitySlider.ValueChanged += (_, e) =>
+        {
+            ToastOpacityValue.Text = e.NewValue.ToString("F0") + "%";
+            UpdateMockups();
+        };
+        CornerRadiusSlider.ValueChanged += (_, e) =>
+        {
+            CornerRadiusValue.Text = e.NewValue.ToString("F0");
+            UpdateMockups();
+        };
+        PaddingSlider.ValueChanged += (_, e) =>
+        {
+            PaddingValue.Text = e.NewValue.ToString("F0");
+            UpdateMockups();
+        };
+        OverlayFontSizeSlider.ValueChanged += (_, e) =>
+        {
+            OverlayFontSizeValue.Text = e.NewValue.ToString("F0");
+            UpdateMockups();
+        };
+        ToastTitleFontSizeSlider.ValueChanged += (_, e) =>
+        {
+            ToastTitleFontSizeValue.Text = e.NewValue.ToString("F0");
+            UpdateMockups();
+        };
+        ToastBodyFontSizeSlider.ValueChanged += (_, e) =>
+        {
+            ToastBodyFontSizeValue.Text = e.NewValue.ToString("F0");
+            UpdateMockups();
+        };
+
         ThemeComboBox.SelectionChanged += (_, _) => UpdateMockups();
         AccentColorTextBox.TextChanged += (_, _) => UpdateMockups();
+        TextColorTextBox.TextChanged += (_, _) => UpdateMockups();
+        ProcessingAccentColorTextBox.TextChanged += (_, _) => UpdateMockups();
+        OverlayBackgroundColorTextBox.TextChanged += (_, _) => UpdateMockups();
+        ToastBackgroundColorTextBox.TextChanged += (_, _) => UpdateMockups();
+        FontFamilyComboBox.SelectionChanged += (_, _) => UpdateMockups();
+        FontFamilyComboBox.LostFocus += (_, _) => UpdateMockups();
+        ShadowEnabledCheckBox.Checked += (_, _) => UpdateMockups();
+        ShadowEnabledCheckBox.Unchecked += (_, _) => UpdateMockups();
+        ShowStatusTextCheckBox.Checked += (_, _) => UpdateMockups();
+        ShowStatusTextCheckBox.Unchecked += (_, _) => UpdateMockups();
+        ListeningLabelTextBox.TextChanged += (_, _) => UpdateMockups();
+        ProcessingLabelTextBox.TextChanged += (_, _) => UpdateMockups();
+        PulseSpeedComboBox.SelectionChanged += (_, _) => UpdateMockups();
 
         UpdateMockups();
     }
@@ -147,22 +230,78 @@ public partial class SettingsWindow : Window
 
         RecordingMockup.Background = brushes.OverlayBackground;
         RecordingMockup.BorderBrush = brushes.OverlayBorder;
+        RecordingMockup.CornerRadius = new System.Windows.CornerRadius(style.CornerRadius);
+        RecordingMockup.Padding = new System.Windows.Thickness(style.Padding);
         RecordingMockupDot.Fill = brushes.Accent;
         RecordingMockupText.Foreground = brushes.PrimaryText;
+        RecordingMockupText.FontFamily = new System.Windows.Media.FontFamily(style.FontFamily);
+        RecordingMockupText.FontSize = style.OverlayFontSize;
+        RecordingMockupText.Text = style.ListeningLabel;
 
         ToastMockup.Background = brushes.ToastBackground;
         ToastMockup.BorderBrush = brushes.ToastBorder;
+        ToastMockup.CornerRadius = new System.Windows.CornerRadius(style.CornerRadius);
+        ToastMockup.Padding = new System.Windows.Thickness(style.Padding);
         ToastMockupTitle.Foreground = brushes.PrimaryText;
+        ToastMockupTitle.FontFamily = new System.Windows.Media.FontFamily(style.FontFamily);
+        ToastMockupTitle.FontSize = style.ToastTitleFontSize;
         ToastMockupBody.Foreground = brushes.SecondaryText;
+        ToastMockupBody.FontFamily = new System.Windows.Media.FontFamily(style.FontFamily);
+        ToastMockupBody.FontSize = style.ToastBodyFontSize;
 
-        if (!string.IsNullOrWhiteSpace(style.AccentColor) && brushes.Accent is System.Windows.Media.SolidColorBrush sb)
+        if (style.ShowStatusText)
         {
-            AccentPreview.Background = new System.Windows.Media.SolidColorBrush(sb.Color);
+            RecordingMockupText.Visibility = System.Windows.Visibility.Visible;
+            RecordingMockupDot.Margin = new System.Windows.Thickness(0, 0, 8, 0);
         }
         else
         {
-            AccentPreview.Background = System.Windows.Media.Brushes.Transparent;
+            RecordingMockupText.Visibility = System.Windows.Visibility.Collapsed;
+            RecordingMockupDot.Margin = new System.Windows.Thickness(0);
         }
+
+        if (style.ShadowEnabled)
+        {
+            RecordingMockup.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = System.Windows.Media.Colors.Black,
+                Opacity = 0.3,
+                BlurRadius = 12,
+                ShadowDepth = 4
+            };
+            ToastMockup.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = System.Windows.Media.Colors.Black,
+                Opacity = 0.3,
+                BlurRadius = 12,
+                ShadowDepth = 4
+            };
+        }
+        else
+        {
+            RecordingMockup.Effect = null;
+            ToastMockup.Effect = null;
+        }
+
+        static System.Windows.Media.Brush GetPreviewBrush(string? customValue, System.Windows.Media.Brush fallback)
+        {
+            if (string.IsNullOrWhiteSpace(customValue)) return fallback;
+            try
+            {
+                var color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(customValue);
+                return new System.Windows.Media.SolidColorBrush(color);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        AccentPreview.Background = GetPreviewBrush(style.AccentColor, brushes.Accent);
+        TextColorPreview.Background = GetPreviewBrush(style.TextColor, brushes.PrimaryText);
+        ProcessingAccentPreview.Background = GetPreviewBrush(style.ProcessingAccentColor, brushes.ProcessingAccent);
+        OverlayBackgroundPreview.Background = GetPreviewBrush(style.OverlayBackgroundColor, brushes.OverlayBackground);
+        ToastBackgroundPreview.Background = GetPreviewBrush(style.ToastBackgroundColor, brushes.ToastBackground);
     }
 
     private OverlayStyleConfig BuildStyleFromControls()
@@ -171,8 +310,43 @@ public partial class SettingsWindow : Window
         var theme = Enum.TryParse<OverlayTheme>(themeText, out var t) ? t : OverlayTheme.Dark;
         var accent = AccentColorTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(accent)) accent = null;
+        var textColor = TextColorTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(textColor)) textColor = null;
+        var processingAccent = ProcessingAccentColorTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(processingAccent)) processingAccent = null;
+        var overlayBg = OverlayBackgroundColorTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(overlayBg)) overlayBg = null;
+        var toastBg = ToastBackgroundColorTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(toastBg)) toastBg = null;
+
+        var pulseSpeedText = PulseSpeedComboBox.SelectedItem as string ?? "Normal";
+        var pulseSpeed = Enum.TryParse<OverlayPulseSpeed>(pulseSpeedText, out var ps) ? ps : OverlayPulseSpeed.Normal;
+
         var opacity = OpacitySlider.Value / 100.0;
-        return new OverlayStyleConfig { Theme = theme, AccentColor = accent, BackgroundOpacity = opacity };
+        var toastOpacity = ToastOpacitySlider.Value / 100.0;
+
+        return new OverlayStyleConfig
+        {
+            Theme = theme,
+            AccentColor = accent,
+            TextColor = textColor,
+            ProcessingAccentColor = processingAccent,
+            OverlayBackgroundColor = overlayBg,
+            ToastBackgroundColor = toastBg,
+            FontFamily = string.IsNullOrWhiteSpace(FontFamilyComboBox.Text) ? "Segoe UI" : FontFamilyComboBox.Text.Trim(),
+            OverlayFontSize = (int)OverlayFontSizeSlider.Value,
+            ToastTitleFontSize = (int)ToastTitleFontSizeSlider.Value,
+            ToastBodyFontSize = (int)ToastBodyFontSizeSlider.Value,
+            ShowStatusText = ShowStatusTextCheckBox.IsChecked == true,
+            ListeningLabel = ListeningLabelTextBox.Text.Trim(),
+            ProcessingLabel = ProcessingLabelTextBox.Text.Trim(),
+            BackgroundOpacity = opacity,
+            ToastOpacity = toastOpacity,
+            CornerRadius = (int)CornerRadiusSlider.Value,
+            Padding = (int)PaddingSlider.Value,
+            ShadowEnabled = ShadowEnabledCheckBox.IsChecked == true,
+            PulseSpeed = pulseSpeed
+        };
     }
 
     private void RefreshModesList()
@@ -1204,7 +1378,8 @@ public partial class SettingsWindow : Window
                     OffsetY = int.TryParse(PreviewOffsetYTextBox.Text, out var poy) ? poy : 0,
                     Enabled = ShowPreviewToastCheckBox.IsChecked == true
                 },
-                DurationSeconds = (int)ToastDurationSlider.Value
+                DurationSeconds = (int)ToastDurationSlider.Value,
+                MaxWidth = (int)MaxWidthSlider.Value
             },
             OverlayStyle = BuildStyleFromControls(),
             HuggingFaceToken = HfTokenTextBox.Text.Trim()
@@ -1316,7 +1491,8 @@ public partial class SettingsWindow : Window
         var previewToastConfig = new PreviewToastSpecificConfig
         {
             Placement = previewPlacement,
-            DurationSeconds = (int)ToastDurationSlider.Value
+            DurationSeconds = (int)ToastDurationSlider.Value,
+            MaxWidth = (int)MaxWidthSlider.Value
         };
 
         _previewOverlay = new RecordingOverlay(recordingPlacement, style);

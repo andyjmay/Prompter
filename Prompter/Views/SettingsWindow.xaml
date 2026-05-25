@@ -655,6 +655,21 @@
                         <!-- Recording Overlay -->
                         <TextBlock Text="Recording Overlay" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
                         <CheckBox x:Name="ShowRecordingOverlayCheckBox" Content="Show recording overlay while listening" Margin="0,0,0,8"/>
+                        <CheckBox x:Name="ShowStatusTextCheckBox" Content="Show status text on recording overlay" Margin="0,0,0,8"/>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Listening label" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <TextBox x:Name="ListeningLabelTextBox" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Processing label" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <TextBox x:Name="ProcessingLabelTextBox" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                         <CheckBox x:Name="ShowAudioMeterCheckBox" Content="Show audio level meter on recording overlay" Margin="0,0,0,12"/>
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -698,7 +713,7 @@
                                 <TextBox x:Name="PreviewOffsetYTextBox" HorizontalContentAlignment="Center"/>
                             </StackPanel>
                         </Grid>
-                        <Grid Margin="0,0,0,20">
+                        <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
@@ -708,9 +723,19 @@
                             <Slider x:Name="ToastDurationSlider" Grid.Column="1" Minimum="1" Maximum="15" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
                             <TextBlock x:Name="ToastDurationValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
                         </Grid>
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max width (px): " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="MaxWidthSlider" Grid.Column="1" Minimum="300" Maximum="800" TickFrequency="50" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="MaxWidthValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
 
-                        <!-- Theme & Colors -->
-                        <TextBlock Text="Theme &amp; Colors" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+                        <!-- Colors -->
+                        <TextBlock Text="Colors" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -732,38 +757,181 @@
                                 </Grid>
                             </StackPanel>
                         </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Text Color (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TextColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
+                                    <Border x:Name="TextColorPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Processing Accent (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="ProcessingAccentColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
+                                    <Border x:Name="ProcessingAccentPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Overlay Background (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="OverlayBackgroundColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
+                                    <Border x:Name="OverlayBackgroundPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Toast Background (hex)" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="ToastBackgroundColorTextBox" Grid.Column="0" VerticalContentAlignment="Center"/>
+                                    <Border x:Name="ToastBackgroundPreview" Grid.Column="1" Width="24" Height="24" CornerRadius="4" Margin="8,0,0,0" BorderBrush="#FF555555" BorderThickness="1"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Typography -->
+                        <TextBlock Text="Typography" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Font Family" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="FontFamilyComboBox" IsEditable="True"/>
+                            </StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Overlay font size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="OverlayFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="OverlayFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Toast title size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="ToastTitleFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ToastTitleFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="50"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Background opacity: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Toast body size: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="ToastBodyFontSizeSlider" Grid.Column="1" Minimum="8" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ToastBodyFontSizeValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
+
+                        <!-- Shape & Effects -->
+                        <TextBlock Text="Shape &amp; Effects" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Overlay opacity: " VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <Slider x:Name="OpacitySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
                             <TextBlock x:Name="OpacityValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
                         </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Toast opacity: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="ToastOpacitySlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ToastOpacityValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Corner radius: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="CornerRadiusSlider" Grid.Column="1" Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="CornerRadiusValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="50"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Padding: " VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="PaddingSlider" Grid.Column="1" Minimum="0" Maximum="32" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="PaddingValue" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontWeight="Bold" Foreground="#FF00BFFF" FontSize="14"/>
+                        </Grid>
+                        <CheckBox x:Name="ShadowEnabledCheckBox" Content="Show window shadow" Margin="0,0,0,12"/>
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Pulse Speed" FontSize="11" Foreground="#FF888888" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="PulseSpeedComboBox"/>
+                            </StackPanel>
+                        </Grid>
 
-                        <!-- Visual Mockups -->
+                        <!-- Visual Preview -->
                         <TextBlock Text="Visual Preview" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,8"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="RecordingMockup" Grid.Column="0" Height="48" CornerRadius="16" BorderThickness="1" Margin="0,0,8,0" HorizontalAlignment="Stretch">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border x:Name="RecordingMockup" Grid.Column="0" MinHeight="48" BorderThickness="1" Margin="0,0,8,0" HorizontalAlignment="Stretch">
+                                <StackPanel x:Name="RecordingMockupStack" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Ellipse x:Name="RecordingMockupDot" Width="10" Height="10" Margin="0,0,8,0"/>
-                                    <TextBlock x:Name="RecordingMockupText" Text="Listening..." FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="RecordingMockupText" Text="Listening..." FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="ToastMockup" Grid.Column="1" Height="48" CornerRadius="8" BorderThickness="1" Padding="12,0" HorizontalAlignment="Stretch">
+                            <Border x:Name="ToastMockup" Grid.Column="1" MinHeight="48" BorderThickness="1" HorizontalAlignment="Stretch">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock x:Name="ToastMockupTitle" Text="Prompter Output" FontWeight="Bold" FontSize="11" Grid.Row="0" Margin="0,0,0,2"/>
-                                    <TextBlock x:Name="ToastMockupBody" Text="Preview text here..." FontSize="10" TextTrimming="CharacterEllipsis" Grid.Row="1"/>
+                                    <TextBlock x:Name="ToastMockupTitle" Text="Prompter Output" FontWeight="Bold" Grid.Row="0" Margin="0,0,0,2"/>
+                                    <TextBlock x:Name="ToastMockupBody" Text="Preview text here..." TextTrimming="CharacterEllipsis" Grid.Row="1"/>
                                 </Grid>
                             </Border>
                         </Grid>

@@ -4,22 +4,23 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-         Topmost="True"
-         ShowActivated="False"
-         ShowInTaskbar="False"
-        Width="400"
-        Height="160"
+        Topmost="True"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+         SizeToContent="WidthAndHeight"
+         MaxHeight="300"
+         MinWidth="240"
         Loaded="Window_Loaded">
-    <Border x:Name="RootBorder" CornerRadius="8" Padding="16" BorderThickness="1">
+    <Border x:Name="RootBorder" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock x:Name="TitleText" Text="Prompter Output" FontWeight="Bold" FontSize="14" Grid.Row="0"/>
+            <TextBlock x:Name="TitleText" Text="Prompter Output" FontWeight="Bold" Grid.Row="0"/>
             <ScrollViewer Grid.Row="1" Margin="0,8,0,8" VerticalScrollBarVisibility="Auto">
-                <TextBlock x:Name="OutputText" TextWrapping="Wrap" FontSize="12"/>
+                <TextBlock x:Name="OutputText" TextWrapping="Wrap"/>
             </ScrollViewer>
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button x:Name="CopyButton" Content="Copy" Width="60" Margin="0,0,8,0" Click="Copy_Click" />

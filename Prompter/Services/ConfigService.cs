@@ -249,6 +249,15 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 12)
+        {
+            migrated = migrated with
+            {
+                Version = 12,
+                OverlayStyle = migrated.OverlayStyle ?? new()
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),
