@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Collections;
 using System.ComponentModel;
 using System.Linq;
@@ -75,6 +75,9 @@ public partial class SettingsWindow : Window
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
         NotifyOnOutputReadyCheckBox.IsChecked = _config.NotifyOnOutputReady;
         SpokenPunctuationCheckBox.IsChecked = _config.SpokenPunctuationEnabled;
+        CleanEnabledCheckBox.IsChecked = _config.CleanEnabled;
+        CleanPromptTextBox.Text = _config.CleanPrompt ?? string.Empty;
+        UpdateCleanPromptControlsState();
         HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
@@ -1006,6 +1009,31 @@ public partial class SettingsWindow : Window
         _captureTimer.Start();
     }
 
+    private void UpdateCleanPromptControlsState()
+    {
+        if (CleanPromptTextBox != null)
+        {
+            CleanPromptTextBox.IsEnabled = CleanEnabledCheckBox.IsChecked == true;
+        }
+        if (ResetCleanPromptButton != null)
+        {
+            ResetCleanPromptButton.IsEnabled = CleanEnabledCheckBox.IsChecked == true;
+        }
+    }
+
+    private void CleanEnabledCheckBox_Checked(object sender, RoutedEventArgs e)
+    {
+        UpdateCleanPromptControlsState();
+    }
+
+    private void ResetCleanPromptButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (CleanPromptTextBox != null)
+        {
+            CleanPromptTextBox.Text = ModeDefaults.DefaultCleanPrompt;
+        }
+    }
+
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         var parts = HotkeyTextBox.Text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -1051,7 +1079,9 @@ public partial class SettingsWindow : Window
             AudioFeedbackEnabled = AudioFeedbackCheckBox.IsChecked == true,
             NotificationsEnabled = NotificationsCheckBox.IsChecked == true,
             NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true,
-            SpokenPunctuationEnabled = SpokenPunctuationCheckBox.IsChecked == true
+            SpokenPunctuationEnabled = SpokenPunctuationCheckBox.IsChecked == true,
+            CleanEnabled = CleanEnabledCheckBox.IsChecked == true,
+            CleanPrompt = CleanPromptTextBox.Text.Trim()
         };
 
         _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };

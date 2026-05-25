@@ -202,6 +202,34 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 8)
+        {
+            var modes = ModeDefaults.EnsureBuiltInsPresent(migrated.Modes.ToList());
+            migrated = migrated with
+            {
+                Version = 8,
+                Modes = modes
+            };
+        }
+
+        if (rawVersion < 9)
+        {
+            var defaultModeId = migrated.DefaultModeId;
+            if (defaultModeId.Equals("clean", StringComparison.OrdinalIgnoreCase))
+            {
+                defaultModeId = ModeDefaults.StandardId;
+            }
+            var modes = migrated.Modes
+                .Where(m => !m.Id.Equals("clean", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            migrated = migrated with
+            {
+                Version = 9,
+                DefaultModeId = defaultModeId,
+                Modes = modes
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),

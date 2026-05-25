@@ -16,18 +16,28 @@ public class TextFormatter : ITextFormatter
         _fileLogger = fileLogger;
     }
 
+    // Source of truth for all filler words/phrases used in Clean mode
+    private static readonly string[] UnambiguousFillers = new[] { "you know", "i mean", "sort of", "kind of", "um", "uh" };
+    private static readonly string[] ContextualFillers = new[] { "like", "basically", "literally" };
+
     public async Task<string> CleanupAsync(string rawText, string modeId, CancellationToken ct)
     {
         if (!_modelManager.ChatReady)
             throw new InvalidOperationException("Chat model not loaded");
 
         var cfg = _configService.Load();
-        var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
-        if (mode == null)
+        var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase)) ?? ModeDefaults.Standard;
+        var systemPrompt = mode.SystemPrompt;
+
+        bool cleaningActive = cfg.CleanEnabled && !mode.SkipFormatting;
+        if (cleaningActive)
         {
-            _fileLogger.Log($"WARNING: Mode '{modeId}' not found in config. Using standard system prompt.");
+            var cleanInstruction = cfg.CleanPrompt;
+            if (!string.IsNullOrWhiteSpace(cleanInstruction))
+            {
+                systemPrompt += "\n\n" + cleanInstruction;
+            }
         }
-        var systemPrompt = mode?.SystemPrompt ?? ModeDefaults.Standard.SystemPrompt;
 
         var matchedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var validWords = cfg.DictionaryEntries
@@ -55,13 +65,17 @@ public class TextFormatter : ITextFormatter
 
         var chatClient = await _modelManager.GetChatClientAsync();
 
+        var userMessage = cleaningActive
+            ? $"The text below is dictated speech. Apply the system instructions. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}"
+            : $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}";
+
         var messages = new List<ChatMessage>
         {
             new("system", systemPrompt),
-            new("user", $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}")
+            new("user", userMessage)
         };
 
-        _fileLogger.Log($"Formatting with chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' in '{mode?.Name ?? modeId}' mode.");
+        _fileLogger.Log($"Formatting with chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' in '{mode.Name}' mode.");
         var result = await chatClient.CompleteAsync(messages, 0.0f, ct);
         if (string.IsNullOrEmpty(result))
         {
@@ -71,12 +85,19 @@ public class TextFormatter : ITextFormatter
 
         result = StripOutputWrappers(result, rawText);
         result = StripTrailingArtifactsByRawAlignment(result, rawText);
-        result = RejectIfHallucinated(rawText, result);
+        result = RejectIfHallucinated(rawText, result, modeId, cleaningActive);
+
+        if (cleaningActive)
+        {
+            var protectedWords = new HashSet<string>(validWords.Distinct(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+            result = StripFillers(result, protectedWords);
+        }
+
         _fileLogger.Log($"Chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' cleaned text: {result}");
         return result;
     }
 
-    internal static string RejectIfHallucinated(string rawText, string result)
+    internal static string RejectIfHallucinated(string rawText, string result, string? modeId = null, bool cleanEnabled = false)
     {
         if (string.IsNullOrWhiteSpace(result)) return rawText;
 
@@ -91,9 +112,54 @@ public class TextFormatter : ITextFormatter
         if (overlap == 0 && rawWords.Length > 0)
             return rawText;
 
-        if (rawWords.Length > 0)
+        var denominator = rawWords.Length;
+        if (cleanEnabled)
         {
-            var preservationRatio = (double)overlap / rawWords.Length;
+            var singleWordFillers = UnambiguousFillers.Where(f => !f.Contains(' '))
+                .Concat(ContextualFillers)
+                .ToHashSet();
+            var multiWordFillers = UnambiguousFillers.Where(f => f.Contains(' '))
+                .Select(f => f.Split(' '))
+                .ToArray();
+
+            var isFillerWord = new bool[rawWords.Length];
+
+            for (int i = 0; i < rawWords.Length; i++)
+            {
+                var clean = rawWords[i].Trim(',', '.', '!', '?', ';', ':').ToLowerInvariant();
+                if (singleWordFillers.Contains(clean))
+                    isFillerWord[i] = true;
+            }
+
+            foreach (var phrase in multiWordFillers)
+            {
+                for (int i = 0; i <= rawWords.Length - phrase.Length; i++)
+                {
+                    bool match = true;
+                    for (int j = 0; j < phrase.Length; j++)
+                    {
+                        var clean = rawWords[i + j].Trim(',', '.', '!', '?', ';', ':').ToLowerInvariant();
+                        if (clean != phrase[j])
+                        {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match)
+                    {
+                        for (int j = 0; j < phrase.Length; j++)
+                            isFillerWord[i + j] = true;
+                    }
+                }
+            }
+
+            denominator = rawWords.Length - isFillerWord.Count(static b => b);
+            if (denominator == 0) denominator = 1;
+        }
+
+        if (denominator > 0)
+        {
+            var preservationRatio = (double)overlap / denominator;
             if (preservationRatio < 0.4)
                 return rawText;
         }
@@ -269,5 +335,39 @@ public class TextFormatter : ITextFormatter
         }
 
         return result;
+    }
+
+    internal static string StripFillers(string text, HashSet<string> protectedWords)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+
+        var activeUnambiguous = UnambiguousFillers.Where(f => !protectedWords.Contains(f)).ToList();
+        var activeContextual = ContextualFillers.Where(f => !protectedWords.Contains(f)).ToList();
+
+        if (activeUnambiguous.Count > 0)
+        {
+            var escaped = activeUnambiguous.OrderByDescending(f => f.Length).Select(f => Regex.Escape(f));
+            var pattern = $@"\b({string.Join("|", escaped)})\b";
+            text = Regex.Replace(text, pattern, "", RegexOptions.IgnoreCase);
+        }
+
+        if (activeContextual.Count > 0)
+        {
+            var escaped = activeContextual.Select(f => Regex.Escape(f));
+            var joined = string.Join("|", escaped);
+            var pattern = $@"(?<![\w'-])({joined})(?=\s*[,.:;])|(?<=[,;:\-]\s*)({joined})(?=\s*[,.:;]|$)";
+            text = Regex.Replace(text, pattern, "", RegexOptions.IgnoreCase);
+        }
+
+        text = Regex.Replace(text, @",\s*,", ",");           // collapse double commas
+        text = Regex.Replace(text, @",\s*([.!?])", "$1");    // comma before end punctuation
+        text = Regex.Replace(text, @"\s+,", ",");            // remove space before comma
+        text = Regex.Replace(text, @"\s+([.!?])", "$1");     // remove space before end punctuation
+        text = Regex.Replace(text, @"\s+", " ");             // collapse multiple spaces
+        text = text.Trim();
+        text = text.Trim(',');                               // remove dangling commas
+        text = text.Trim();
+
+        return text;
     }
 }

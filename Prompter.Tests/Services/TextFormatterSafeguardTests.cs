@@ -216,4 +216,80 @@ public class TextFormatterSafeguardTests
     }
 
     #endregion
+
+    #region StripFillers
+
+    [Fact]
+    public void StripFillers_RemovesSingleFiller()
+    {
+        var result = TextFormatter.StripFillers("So, um, we need", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("So, we need", result);
+    }
+
+    [Fact]
+    public void StripFillers_RemovesPhrase()
+    {
+        var result = TextFormatter.StripFillers("You know, I think", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("I think", result);
+    }
+
+    [Fact]
+    public void StripFillers_PreservesDictionaryWord()
+    {
+        var protectedWords = new HashSet<string>(new[] { "like" }, StringComparer.OrdinalIgnoreCase);
+        var result = TextFormatter.StripFillers("I like pizza", protectedWords);
+        Assert.Equal("I like pizza", result);
+    }
+
+    [Fact]
+    public void StripFillers_PreservesIntegralUsage()
+    {
+        var result = TextFormatter.StripFillers("I like pizza", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("I like pizza", result);
+    }
+
+    [Fact]
+    public void StripFillers_CleansArtifacts()
+    {
+        var result = TextFormatter.StripFillers("So, um, we need to finalize the budget.", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("So, we need to finalize the budget.", result);
+    }
+
+    [Fact]
+    public void StripFillers_RemovesContextualFiller_WhenFollowedByComma()
+    {
+        var result = TextFormatter.StripFillers("Like, I was saying", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("I was saying", result);
+    }
+
+    [Fact]
+    public void StripFillers_RemovesContextualFiller_WhenSurroundedByCommas()
+    {
+        var result = TextFormatter.StripFillers("the, like, main issue", new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal("the, main issue", result);
+    }
+
+    #endregion
+
+    #region RejectIfHallucinated_CleanMode
+
+    [Fact]
+    public void RejectIfHallucinated_CleanMode_HighFiller_AllowsResult()
+    {
+        var raw = "I, um, like, you know, I mean, I really, uh, like this.";
+        var result = "I really like this.";
+        var accepted = TextFormatter.RejectIfHallucinated(raw, result, cleanEnabled: true);
+        Assert.Equal(result, accepted);
+    }
+
+    [Fact]
+    public void RejectIfHallucinated_CleanMode_LowOverlap_Rejects()
+    {
+        var raw = "um uh like";
+        var result = "completely different text";
+        var rejected = TextFormatter.RejectIfHallucinated(raw, result, cleanEnabled: true);
+        Assert.Equal(raw, rejected);
+    }
+
+    #endregion
 }

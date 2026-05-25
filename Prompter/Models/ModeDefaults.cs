@@ -6,6 +6,7 @@ public static class ModeDefaults
     public const string FormalId = "formal";
     public const string RawId = "raw";
     public const string DebugId = "debug";
+    public const string DefaultCleanPrompt = "Remove filler words such as um, uh, like, you know, I mean, sort of, and basically. Do not rephrase sentences. Preserve all substantive content.";
 
     public static readonly ModeConfig Standard = new()
     {

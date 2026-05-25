@@ -104,6 +104,7 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         {
             _config = cfg;
             RefreshModeMenuItems();
+            OnPropertyChanged(nameof(CleanEnabled));
         };
         _configService.ConfigChanged += _onConfigChanged;
     }
@@ -198,6 +199,20 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         foreach (var item in ModeMenuItems)
         {
             item.IsSelected = item.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    public bool CleanEnabled
+    {
+        get => _config.CleanEnabled;
+        set
+        {
+            if (_config.CleanEnabled != value)
+            {
+                _config = _config with { CleanEnabled = value };
+                OnPropertyChanged(nameof(CleanEnabled));
+                _ = _configService.SaveAsync(_config);
+            }
         }
     }
 

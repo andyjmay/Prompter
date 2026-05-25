@@ -45,11 +45,13 @@ public record PreviewToastSpecificConfig
 
 public record AppConfig
 {
-    public int Version { get; init; } = 7;
+    public int Version { get; init; } = 9;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public string DefaultModeId { get; init; } = ModeDefaults.StandardId;
     public List<ModeConfig> Modes { get; init; } = new(ModeDefaults.AllBuiltIns);
+    public bool CleanEnabled { get; init; } = false;
+    public string CleanPrompt { get; init; } = "Remove filler words such as um, uh, like, you know, I mean, sort of, and basically. Do not rephrase sentences. Preserve all substantive content.";
     public int ModelIdleTtlMinutes { get; init; } = 5;
     public bool AutoStartWithWindows { get; init; } = false;
     public bool AudioFeedbackEnabled { get; init; } = false;

@@ -30,6 +30,7 @@
                             </Style>
                         </MenuItem.ItemContainerStyle>
                     </MenuItem>
+                    <MenuItem Header="Remove Filler Words (Clean)" IsCheckable="True" IsChecked="{Binding CleanEnabled}"/>
                     <Separator/>
                     <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
                     <MenuItem Header="Copy Last Output" Command="{Binding CopyLastOutputCommand}"/>
