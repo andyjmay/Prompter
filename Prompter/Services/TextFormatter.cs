@@ -1,4 +1,3 @@
-using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Prompter.Models;
 
 namespace Prompter.Services;
@@ -26,29 +25,22 @@ public class TextFormatter : ITextFormatter
 
         var messages = new List<ChatMessage>
         {
-            new() { Role = "system", Content = systemPrompt },
-            new() { Role = "user", Content = $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. If the text is already correct, copy it exactly.\n\n{rawText}" }
+            new("system", systemPrompt),
+            new("user", $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}")
         };
 
-        chatClient.Settings.Temperature = 0.0f;
-
-        var response = await chatClient.CompleteChatAsync(messages, ct);
-        if (response == null || response.Choices == null || response.Choices.Count == 0)
+        _fileLogger.Log($"Formatting with chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' in '{mode}' mode.");
+        var result = await chatClient.CompleteAsync(messages, 0.0f, ct);
+        if (string.IsNullOrEmpty(result))
         {
             _fileLogger.Log("Chat model returned null or empty response.");
             return rawText;
         }
 
-        var result = response.Choices[0]?.Message?.Content;
-        if (string.IsNullOrEmpty(result))
-        {
-            _fileLogger.Log("Chat model returned empty content.");
-            return rawText;
-        }
-
-        result = StripOutputWrappers(result);
+        result = StripOutputWrappers(result, rawText);
+        result = StripTrailingArtifactsByRawAlignment(result, rawText);
         result = RejectIfHallucinated(rawText, result);
-        _fileLogger.Log($"Cleaned text: {result}");
+        _fileLogger.Log($"Chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' cleaned text: {result}");
         return result;
     }
 
@@ -60,10 +52,10 @@ public class TextFormatter : ITextFormatter
 
         return mode switch
         {
-            Models.FormatMode.Standard => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning.",
-            Models.FormatMode.Formal => "You are a spelling and punctuation corrector. Remove filler words and expand contractions. Do not rewrite sentences or change meaning. Do not add or remove content.",
+            Models.FormatMode.Standard => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning. Never add trailing commentary or ellipsis.",
+            Models.FormatMode.Formal => "You are a spelling and punctuation corrector. Remove filler words and expand contractions. Do not rewrite sentences or change meaning. Do not add or remove content. Never add trailing commentary or ellipsis.",
             Models.FormatMode.Raw => "Return the text exactly as provided, with no changes.",
-            _ => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning."
+            _ => "You are a spelling and punctuation corrector. You do not write, rewrite, or respond to text. You only fix typos, capitalization, and missing punctuation. Never change meaning. Never add trailing commentary or ellipsis."
         };
     }
 
@@ -96,7 +88,7 @@ public class TextFormatter : ITextFormatter
         return result;
     }
 
-    private static string StripOutputWrappers(string text)
+    private static string StripOutputWrappers(string text, string rawText)
     {
         if (string.IsNullOrWhiteSpace(text)) return text;
 
@@ -129,6 +121,53 @@ public class TextFormatter : ITextFormatter
             }
         }
 
+        // Strip trailing empty or punctuation-only lines
+        while (lines.Length > 0)
+        {
+            var last = lines[^1].Trim();
+            if (string.IsNullOrWhiteSpace(last) ||
+                last is "..." or "…" or "-" or "*" or "`" or "'" or "\"")
+            {
+                lines = lines[..^1];
+            }
+            else if (last.StartsWith("---", StringComparison.Ordinal) ||
+                     last.StartsWith("```", StringComparison.Ordinal) ||
+                     last.StartsWith("***", StringComparison.Ordinal))
+            {
+                lines = lines[..^1];
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        // Strip common trailing suffixes from the last non-empty line
+        if (lines.Length > 0)
+        {
+            var lastLine = lines[^1].Trim();
+            var suffixes = new[]
+            {
+                "Is there anything else I can help you with?",
+                "Let me know if you need anything else.",
+                "Can I help you with anything else?",
+                "Do you need any further assistance?",
+                "Do you need anything else?",
+                "Anything else?",
+                "Need help with anything else?",
+            };
+
+            foreach (var suffix in suffixes.OrderByDescending(s => s.Length))
+            {
+                if (lastLine.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    lastLine = lastLine[..^suffix.Length].TrimEnd();
+                    lines[^1] = lastLine;
+                    break;
+                }
+            }
+        }
+
         var result = string.Join("\n", lines).Trim();
         if ((result.StartsWith('"') && result.EndsWith('"')) ||
             (result.StartsWith('\'') && result.EndsWith('\'')) ||
@@ -136,6 +175,80 @@ public class TextFormatter : ITextFormatter
         {
             if (result.Length > 2)
                 result = result[1..^1].Trim();
+        }
+
+        // Strip trailing ellipsis/continuation markers unless raw text also ends with them
+        var rawTrimmed = rawText.TrimEnd();
+        if ((result.EndsWith("...") || result.EndsWith("…")) &&
+            !(rawTrimmed.EndsWith("...") || rawTrimmed.EndsWith("…")))
+        {
+            result = result.TrimEnd('.', '…').TrimEnd();
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Walks backwards from the end of both texts to find where the model appended extra content.
+    /// If the result has trailing words not present in the raw text, and they look like artifacts
+    /// (contain ellipsis, question marks, or are very short), they are stripped.
+    /// </summary>
+    private static string StripTrailingArtifactsByRawAlignment(string result, string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(result) || string.IsNullOrWhiteSpace(rawText))
+            return result;
+
+        var resultWords = result.Split(new[] { ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        var rawWords = rawText.Split(new[] { ' ', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+        if (resultWords.Length <= rawWords.Length)
+            return result;
+
+        // Walk backwards to find how many trailing words in result match raw text
+        int rawIdx = rawWords.Length - 1;
+        int resultIdx = resultWords.Length - 1;
+        int matchedTrailingWords = 0;
+
+        while (rawIdx >= 0 && resultIdx >= 0)
+        {
+            var rw = rawWords[rawIdx].Trim(',', '.', '!', '?', ';', ':', '"', '\'', '(', ')', '…', '`', '*').ToLowerInvariant();
+            var res = resultWords[resultIdx].Trim(',', '.', '!', '?', ';', ':', '"', '\'', '(', ')', '…', '`', '*').ToLowerInvariant();
+
+            if (rw == res)
+            {
+                matchedTrailingWords++;
+                rawIdx--;
+                resultIdx--;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        var unmatchedCount = resultWords.Length - 1 - resultIdx;
+        if (unmatchedCount > 0 && unmatchedCount <= 6)
+        {
+            var trailingWords = resultWords[(resultIdx + 1)..];
+            var trailingFragment = string.Join(" ", trailingWords);
+
+            // If trailing fragment contains ellipsis, question mark, or looks like meta-commentary, strip it
+            bool looksLikeArtifact = trailingFragment.Contains("...", StringComparison.Ordinal) ||
+                                     trailingFragment.Contains("…", StringComparison.Ordinal) ||
+                                     trailingFragment.Contains("?", StringComparison.Ordinal) ||
+                                     (trailingFragment.Contains("!", StringComparison.Ordinal) && !rawText.TrimEnd().EndsWith('!')) ||
+                                     trailingWords.Any(w => w.StartsWith('<') && w.EndsWith('>')); // token leakage like <|im_end|>
+
+            if (looksLikeArtifact)
+            {
+                // Strip the trailing artifact from the end of the result string
+                var searchFragment = string.Join(" ", trailingWords);
+                var trimmedResult = result.TrimEnd();
+                if (trimmedResult.EndsWith(searchFragment, StringComparison.OrdinalIgnoreCase))
+                {
+                    result = trimmedResult[..^searchFragment.Length].TrimEnd();
+                }
+            }
         }
 
         return result;

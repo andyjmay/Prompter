@@ -1,15 +1,19 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Prompter.Services;
 
 namespace Prompter.Views;
@@ -18,6 +22,8 @@ public partial class CustomModelManagerWindow : Window
 {
     private readonly IConfigService _configService;
     private readonly IFileLogger _logger;
+    private readonly IHuggingFaceService _hfService;
+    private readonly IGgufModelStore _ggufStore;
     private readonly string _whisperDir;
     private readonly string _foundryDir;
     private static readonly HttpClient _httpClient = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
@@ -27,16 +33,37 @@ public partial class CustomModelManagerWindow : Window
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "Prompter/1.0");
     }
     private CancellationTokenSource? _downloadCts;
+    private CancellationTokenSource? _hubSearchCts;
     private bool _isLlmMode = false;
 
     private readonly ObservableCollection<DownloadedModelInfo> _downloadedModels = new();
     private readonly ObservableCollection<RecommendedModelInfo> _recommendedModels = new();
+    private readonly ObservableCollection<HubRepoViewModel> _hubRepos = new();
+    private readonly ObservableCollection<HubFileViewModel> _hubFiles = new();
+    private readonly ObservableCollection<HubRepoViewModel> _advancedRepos = new();
+    private readonly ObservableCollection<HubFileViewModel> _advancedFiles = new();
 
-    public CustomModelManagerWindow(IConfigService configService, IFileLogger logger)
+    private string? _downloadedSortBy;
+    private ListSortDirection _downloadedSortDirection = ListSortDirection.Ascending;
+    private string? _recommendedSortBy;
+    private ListSortDirection _recommendedSortDirection = ListSortDirection.Ascending;
+    private string? _hubRepoSortBy;
+    private ListSortDirection _hubRepoSortDirection = ListSortDirection.Ascending;
+    private string? _hubFileSortBy;
+    private ListSortDirection _hubFileSortDirection = ListSortDirection.Ascending;
+    private CancellationTokenSource? _advancedSearchCts;
+    private string? _advancedRepoSortBy;
+    private ListSortDirection _advancedRepoSortDirection = ListSortDirection.Ascending;
+    private string? _advancedFileSortBy;
+    private ListSortDirection _advancedFileSortDirection = ListSortDirection.Ascending;
+
+    public CustomModelManagerWindow(IConfigService configService, IFileLogger logger, IHuggingFaceService hfService, IGgufModelStore ggufStore)
     {
         InitializeComponent();
         _configService = configService;
         _logger = logger;
+        _hfService = hfService;
+        _ggufStore = ggufStore;
 
         _whisperDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -48,31 +75,33 @@ public partial class CustomModelManagerWindow : Window
 
         DownloadedListView.ItemsSource = _downloadedModels;
         RecommendedListView.ItemsSource = _recommendedModels;
+        HubRepoListView.ItemsSource = _hubRepos;
+        HubFileListView.ItemsSource = _hubFiles;
+        AdvancedRepoListView.ItemsSource = _advancedRepos;
+        AdvancedFileListView.ItemsSource = _advancedFiles;
 
         Loaded += CustomModelManagerWindow_Loaded;
     }
 
-    private void CustomModelManagerWindow_Loaded(object sender, RoutedEventArgs e)
+    private async void CustomModelManagerWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        UpdateUIMode();
+        await UpdateUIModeAsync();
     }
 
-    private void ModeButton_Checked(object sender, RoutedEventArgs e)
+    private async void ModeButton_Checked(object sender, RoutedEventArgs e)
     {
         if (WhisperModeButton == null || LlmModeButton == null) return;
         _isLlmMode = LlmModeButton.IsChecked == true;
-        UpdateUIMode();
+        await UpdateUIModeAsync();
     }
 
-    private void UpdateUIMode()
+    private async Task UpdateUIModeAsync()
     {
         if (_downloadCts != null) return; // Ignore if downloading
 
         // Configure lists and UI based on Mode
         if (_isLlmMode)
         {
-            AdvancedTitleTextBlock.Text = "Download any ONNX Text model from Hugging Face";
-            AdvancedDescTextBlock.Text = "Enter the repository ID of the ONNX GenAI model. The downloader will scan for the genai_config.json file and fetch all files.";
             RepoIdTextBox.Text = "Qwen/Qwen2.5-0.5B-Instruct-ONNX";
             FileNameContainer.Visibility = Visibility.Collapsed;
             LlmDownloadInfoContainer.Visibility = Visibility.Visible;
@@ -81,8 +110,6 @@ public partial class CustomModelManagerWindow : Window
         }
         else
         {
-            AdvancedTitleTextBlock.Text = "Download any GGML Whisper model from Hugging Face";
-            AdvancedDescTextBlock.Text = "Enter the repository ID and file name of the model to download. Ensure it is in the GGML format (.bin).";
             RepoIdTextBox.Text = "distil-whisper/distil-large-v3-ggml";
             FileNameTextBox.Text = "ggml-distil-large-v3.bin";
             FileNameContainer.Visibility = Visibility.Visible;
@@ -91,8 +118,29 @@ public partial class CustomModelManagerWindow : Window
             InitializeRecommendedWhispers();
         }
 
+        if (HubTabItem != null)
+        {
+            if (_isLlmMode)
+            {
+                if (!ManagerTabControl.Items.Contains(HubTabItem))
+                    ManagerTabControl.Items.Insert(2, HubTabItem);
+            }
+            else
+            {
+                if (ManagerTabControl.Items.Contains(HubTabItem))
+                    ManagerTabControl.Items.Remove(HubTabItem);
+            }
+        }
+
+        _advancedRepos.Clear();
+        _advancedFiles.Clear();
+        AdvancedRepoEmptyText.Text = "Enter a search term to find repositories.";
+        AdvancedRepoEmptyText.Visibility = Visibility.Visible;
+        AdvancedFileEmptyText.Text = "Select a repository above to see its files.";
+        AdvancedFileEmptyText.Visibility = Visibility.Visible;
+
         ConfigureDownloadedColumns();
-        RefreshLists();
+        await RefreshListsAsync();
     }
 
     private void ConfigureDownloadedColumns()
@@ -125,7 +173,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "distil-whisper/distil-large-v3-ggml",
             FileName = "ggml-distil-large-v3.bin",
             SizeDescription = "~465 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 465
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -134,7 +183,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "ggerganov/whisper.cpp",
             FileName = "ggml-large-v3-turbo.bin",
             SizeDescription = "~809 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 809
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -143,7 +193,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "ggerganov/whisper.cpp",
             FileName = "ggml-small.en.bin",
             SizeDescription = "~463 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 463
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -152,7 +203,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "ggerganov/whisper.cpp",
             FileName = "ggml-base.en.bin",
             SizeDescription = "~141 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 141
         });
     }
 
@@ -166,7 +218,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "Qwen/Qwen2.5-0.5B-Instruct-ONNX",
             FileName = "onnx/cpu_and_mobile/cpu-int4-rtn-block-32",
             SizeDescription = "~380 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 380
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -175,7 +228,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "Qwen/Qwen2.5-1.5B-Instruct-ONNX",
             FileName = "onnx/cpu_and_mobile/cpu-int4-rtn-block-32",
             SizeDescription = "~950 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 950
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -184,7 +238,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "microsoft/Phi-3.5-mini-instruct-onnx",
             FileName = "onnx/cpu_and_mobile/cpu-int4-rtn-block-32",
             SizeDescription = "~2.2 GB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 2200
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -193,7 +248,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "keisuke-miyako/gemma-2-2B-it-onnx-int4",
             FileName = "",
             SizeDescription = "~1.6 GB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 1600
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -202,7 +258,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "onnxruntime/Gemma-3-ONNX",
             FileName = "gemma-3-4b-it/cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
             SizeDescription = "~2.5 GB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 2500
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -211,7 +268,8 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "onnx-community/Llama-3.2-1B-Instruct-GENAI-ONNX",
             FileName = "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
             SizeDescription = "~700 MB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 700
         });
         _recommendedModels.Add(new RecommendedModelInfo
         {
@@ -220,11 +278,12 @@ public partial class CustomModelManagerWindow : Window
             RepoId = "onnx-community/Llama-3.2-3B-Instruct-GENAI-ONNX",
             FileName = "cpu_and_mobile/cpu-int4-rtn-block-32-acc-level-4",
             SizeDescription = "~1.8 GB",
-            Status = "Checking..."
+            Status = "Checking...",
+            SizeMegabytes = 1800
         });
     }
 
-    private void RefreshLists()
+    private async Task RefreshListsAsync()
     {
         try
         {
@@ -247,7 +306,22 @@ public partial class CustomModelManagerWindow : Window
                         FileName = dirInfo.Name,
                         RelativePath = "Microsoft\\AI.Foundry.Local\\models\\" + dirInfo.Name,
                         SizeDescription = sizeMb >= 1000 ? $"~{sizeMb / 1000:F1} GB" : $"~{sizeMb:F0} MB",
-                        FullPath = dir
+                        FullPath = dir,
+                        SizeMegabytes = sizeMb
+                    });
+                }
+
+                var ggufs = await _ggufStore.GetInstalledModelsAsync(CancellationToken.None);
+                foreach (var gguf in ggufs)
+                {
+                    double mb = gguf.FileSizeBytes / 1024.0 / 1024.0;
+                    _downloadedModels.Add(new DownloadedModelInfo
+                    {
+                        FileName = "[GGUF] " + gguf.FileName,
+                        RelativePath = gguf.FullPath.Replace(_ggufStore.BaseDirectory + "\\", ""),
+                        SizeDescription = mb >= 1000 ? $"~{mb / 1000:F1} GB" : $"~{mb:F0} MB",
+                        FullPath = gguf.FullPath,
+                        SizeMegabytes = mb
                     });
                 }
 
@@ -278,7 +352,8 @@ public partial class CustomModelManagerWindow : Window
                         FileName = info.Name,
                         RelativePath = "models\\ggml\\" + info.Name,
                         SizeDescription = $"{mb:F1} MB",
-                        FullPath = file
+                        FullPath = file,
+                        SizeMegabytes = mb
                     });
                 }
 
@@ -291,6 +366,8 @@ public partial class CustomModelManagerWindow : Window
             }
 
             RecommendedListView.Items.Refresh();
+            ApplySortIfActive(DownloadedListView);
+            ApplySortIfActive(RecommendedListView);
         }
         catch (Exception ex)
         {
@@ -313,12 +390,12 @@ public partial class CustomModelManagerWindow : Window
         }
     }
 
-    private void RefreshDownloadedButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshDownloadedButton_Click(object sender, RoutedEventArgs e)
     {
-        RefreshLists();
+        await RefreshListsAsync();
     }
 
-    private void DeleteModelButton_Click(object sender, RoutedEventArgs e)
+    private async void DeleteModelButton_Click(object sender, RoutedEventArgs e)
     {
         var selected = DownloadedListView.SelectedItem as DownloadedModelInfo;
         if (selected == null)
@@ -341,9 +418,19 @@ public partial class CustomModelManagerWindow : Window
                     return;
                 }
 
+                if (config.UseCustomChat && config.CustomChatModelPath == selected.FullPath)
+                {
+                    MessageBox.Show("Cannot delete this GGUF file because it is currently selected as your active text correction model. Please change it in Settings first.", "File Locked", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 if (Directory.Exists(selected.FullPath))
                 {
                     Directory.Delete(selected.FullPath, true);
+                }
+                else if (File.Exists(selected.FullPath))
+                {
+                    File.Delete(selected.FullPath);
                 }
             }
             else
@@ -360,7 +447,7 @@ public partial class CustomModelManagerWindow : Window
                 }
             }
 
-            RefreshLists();
+            await RefreshListsAsync();
             MessageBox.Show("Deleted successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
@@ -433,41 +520,20 @@ public partial class CustomModelManagerWindow : Window
                 Directory.CreateDirectory(_whisperDir);
             }
 
-            var url = $"https://huggingface.co/{repoId}/resolve/main/{fileName}";
-            var tempPath = Path.Combine(_whisperDir, fileName + ".tmp");
             var targetPath = Path.Combine(_whisperDir, fileName);
 
             ProgressStatusTextBlock.Text = "Connecting to Hugging Face...";
             DownloadProgressBar.Value = 0;
             ProgressPctTextBlock.Text = "0%";
 
-            using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, _downloadCts.Token);
-            response.EnsureSuccessStatusCode();
-
-            var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-            var canReportProgress = totalBytes != -1;
-
-            using var contentStream = await response.Content.ReadAsStreamAsync(_downloadCts.Token);
-            using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-
-            var buffer = new byte[8192];
-            var bytesRead = 0L;
             var stopwatch = Stopwatch.StartNew();
-
-            while (true)
+            var progress = new Progress<(long Received, long Total)>(p =>
             {
-                var read = await contentStream.ReadAsync(buffer, 0, buffer.Length, _downloadCts.Token);
-                if (read == 0) break;
-
-                await fileStream.WriteAsync(buffer, 0, read, _downloadCts.Token);
-                bytesRead += read;
-
-                if (canReportProgress)
+                if (p.Total > 0)
                 {
-                    var pct = (double)bytesRead / totalBytes * 100;
+                    var pct = (double)p.Received / p.Total * 100;
                     var elapsed = stopwatch.Elapsed.TotalSeconds;
-                    var speed = elapsed > 0 ? (bytesRead / 1024.0 / 1024.0) / elapsed : 0;
-
+                    var speed = elapsed > 0 ? (p.Received / 1024.0 / 1024.0) / elapsed : 0;
                     Dispatcher.Invoke(() =>
                     {
                         DownloadProgressBar.Value = pct;
@@ -475,22 +541,15 @@ public partial class CustomModelManagerWindow : Window
                         ProgressStatusTextBlock.Text = $"Downloading {fileName} ({speed:F1} MB/s)";
                     });
                 }
-            }
+            });
 
-            await fileStream.FlushAsync(_downloadCts.Token);
-            fileStream.Close();
-
-            if (File.Exists(targetPath))
-            {
-                File.Delete(targetPath);
-            }
-            File.Move(tempPath, targetPath);
+            await _hfService.DownloadAsync(repoId, fileName, targetPath, progress, _downloadCts.Token);
 
             ProgressStatusTextBlock.Text = "Download complete ✓";
             DownloadProgressBar.Value = 100;
             ProgressPctTextBlock.Text = "100%";
 
-            RefreshLists();
+            await RefreshListsAsync();
             MessageBox.Show($"Successfully downloaded '{fileName}'.", "Download Successful", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException)
@@ -536,7 +595,15 @@ public partial class CustomModelManagerWindow : Window
 
             // Get repo file structure from Hugging Face API
             var apiUrl = $"https://huggingface.co/api/models/{repoId}";
-            var jsonResponse = await _httpClient.GetStringAsync(apiUrl, _downloadCts.Token);
+            using var apiRequest = new HttpRequestMessage(HttpMethod.Get, apiUrl);
+            var token = _configService.Load().HuggingFaceToken;
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                apiRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+            using var apiResponse = await _httpClient.SendAsync(apiRequest, _downloadCts.Token);
+            apiResponse.EnsureSuccessStatusCode();
+            var jsonResponse = await apiResponse.Content.ReadAsStringAsync(_downloadCts.Token);
             var repoInfo = JsonSerializer.Deserialize<HuggingFaceRepoInfo>(jsonResponse, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (repoInfo?.siblings == null || repoInfo.siblings.Count == 0)
@@ -596,36 +663,15 @@ public partial class CustomModelManagerWindow : Window
                     Directory.CreateDirectory(fileTargetDir);
                 }
 
-                var downloadUrl = $"https://huggingface.co/{repoId}/resolve/main/{sibling.rpath}";
-                var tempFilePath = fileTargetPath + ".tmp";
-
                 ProgressStatusTextBlock.Text = $"Downloading file {count} of {filesToDownload.Count}: {relativeFileName}...";
                 DownloadProgressBar.Value = (double)(count - 1) / filesToDownload.Count * 100;
                 ProgressPctTextBlock.Text = $"{DownloadProgressBar.Value:F0}%";
 
-                using var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, _downloadCts.Token);
-                response.EnsureSuccessStatusCode();
-
-                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-                var canReportProgress = totalBytes != -1;
-
-                using var contentStream = await response.Content.ReadAsStreamAsync(_downloadCts.Token);
-                using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-
-                var buffer = new byte[8192];
-                var bytesRead = 0L;
-
-                while (true)
+                var fileProgress = new Progress<(long Received, long Total)>(p =>
                 {
-                    var read = await contentStream.ReadAsync(buffer, 0, buffer.Length, _downloadCts.Token);
-                    if (read == 0) break;
-
-                    await fileStream.WriteAsync(buffer, 0, read, _downloadCts.Token);
-                    bytesRead += read;
-
-                    if (canReportProgress)
+                    if (p.Total > 0)
                     {
-                        var filePct = (double)bytesRead / totalBytes;
+                        var filePct = (double)p.Received / p.Total;
                         var overallPct = (((double)(count - 1) + filePct) / filesToDownload.Count) * 100;
                         Dispatcher.Invoke(() =>
                         {
@@ -634,16 +680,9 @@ public partial class CustomModelManagerWindow : Window
                             ProgressStatusTextBlock.Text = $"Downloading file {count} of {filesToDownload.Count}: {relativeFileName} ({filePct * 100:F0}%)";
                         });
                     }
-                }
+                });
 
-                await fileStream.FlushAsync(_downloadCts.Token);
-                fileStream.Close();
-
-                if (File.Exists(fileTargetPath))
-                {
-                    File.Delete(fileTargetPath);
-                }
-                File.Move(tempFilePath, fileTargetPath);
+                await _hfService.DownloadAsync(repoId, sibling.rpath, fileTargetPath, fileProgress, _downloadCts.Token);
             }
 
             // Write the inference_model.json template automatically based on name autodetection
@@ -653,7 +692,7 @@ public partial class CustomModelManagerWindow : Window
             DownloadProgressBar.Value = 100;
             ProgressPctTextBlock.Text = "100%";
 
-            RefreshLists();
+            await RefreshListsAsync();
             MessageBox.Show($"Successfully downloaded '{modelAlias}' and generated its template. You can now select it in Settings.", "Download Successful", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException)
@@ -692,9 +731,9 @@ public partial class CustomModelManagerWindow : Window
             var alias = modelAlias.ToLowerInvariant();
             if (alias.Contains("qwen"))
             {
-                template.prompt_template["system"] = "<|im_start|>system\n{content}<|im_end|>\n";
-                template.prompt_template["user"] = "<|im_start|>user\n{content}<|im_end|>\n";
-                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}<|im_end|>\n";
+                template.prompt_template["system"] = "<|im_start|>system\n{content}在这\n";
+                template.prompt_template["user"] = "<|im_start|>user\n{content}在这\n";
+                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}在这\n";
             }
             else if (alias.Contains("phi"))
             {
@@ -704,9 +743,9 @@ public partial class CustomModelManagerWindow : Window
             }
             else if (alias.Contains("llama"))
             {
-                template.prompt_template["system"] = "<|start_header_id|>system<|end_header_id|>\n\n{content}<|eot_id|>";
-                template.prompt_template["user"] = "<|start_header_id|>user<|end_header_id|>\n\n{content}<|eot_id|>";
-                template.prompt_template["assistant"] = "<|start_header_id|>assistant<|end_header_id|>\n\n{content}<|eot_id|>";
+                template.prompt_template["system"] = "在这system在这\n\n{content}<|eot_id|>";
+                template.prompt_template["user"] = "在这user在这\n\n{content}<|eot_id|>";
+                template.prompt_template["assistant"] = "在这assistant在这\n\n{content}<|eot_id|>";
             }
             else if (alias.Contains("gemma"))
             {
@@ -717,9 +756,9 @@ public partial class CustomModelManagerWindow : Window
             else
             {
                 // Fallback to standard ChatML
-                template.prompt_template["system"] = "<|im_start|>system\n{content}<|im_end|>\n";
-                template.prompt_template["user"] = "<|im_start|>user\n{content}<|im_end|>\n";
-                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}<|im_end|>\n";
+                template.prompt_template["system"] = "<|im_start|>system\n{content}在这\n";
+                template.prompt_template["user"] = "<|im_start|>user\n{content}在这\n";
+                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}在这\n";
             }
 
             var jsonText = JsonSerializer.Serialize(template, new JsonSerializerOptions { WriteIndented = true });
@@ -729,6 +768,358 @@ public partial class CustomModelManagerWindow : Window
         catch (Exception ex)
         {
             _logger.LogException(ex, "Failed to write inference_model.json template");
+        }
+    }
+
+    private async void HubSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunHubSearchAsync();
+    }
+
+    private void HubSearchTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            _ = RunHubSearchAsync();
+        }
+    }
+
+    private async void AdvancedSearchButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunAdvancedSearchAsync();
+    }
+
+    private void AdvancedSearchTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter)
+        {
+            _ = RunAdvancedSearchAsync();
+        }
+    }
+
+    private async Task RunAdvancedSearchAsync()
+    {
+        var query = AdvancedSearchTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            MessageBox.Show("Please enter a search term.", "Search", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _advancedSearchCts?.Cancel();
+        _advancedSearchCts?.Dispose();
+        _advancedSearchCts = new CancellationTokenSource();
+        var ct = _advancedSearchCts.Token;
+
+        ProgressStatusTextBlock.Text = "Searching Hugging Face...";
+        DownloadProgressBar.Value = 0;
+        ProgressPctTextBlock.Text = "";
+        _advancedRepos.Clear();
+        _advancedFiles.Clear();
+        SetUIEnabled(false);
+        AdvancedRepoEmptyText.Text = "No repositories found. Try a different search term.";
+
+        try
+        {
+            var repos = await _hfService.SearchRepositoriesAsync(query, 20, ct);
+            foreach (var repo in repos)
+            {
+                if (ct.IsCancellationRequested) break;
+                _advancedRepos.Add(new HubRepoViewModel(repo));
+            }
+            ProgressStatusTextBlock.Text = $"Found {_advancedRepos.Count} repositories.";
+            AdvancedRepoEmptyText.Visibility = _advancedRepos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ApplySortIfActive(AdvancedRepoListView);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "Advanced search failed");
+            ProgressStatusTextBlock.Text = "Search failed";
+            AdvancedRepoEmptyText.Text = "Search failed.";
+            AdvancedRepoEmptyText.Visibility = Visibility.Visible;
+            MessageBox.Show($"Search failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetUIEnabled(true);
+        }
+    }
+
+    private async Task RunHubSearchAsync()
+    {
+        var query = HubSearchTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            MessageBox.Show("Please enter a search term.", "Search", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _hubSearchCts?.Cancel();
+        _hubSearchCts?.Dispose();
+        _hubSearchCts = new CancellationTokenSource();
+        var ct = _hubSearchCts.Token;
+
+        ProgressStatusTextBlock.Text = "Searching Hugging Face...";
+        DownloadProgressBar.Value = 0;
+        ProgressPctTextBlock.Text = "";
+        _hubRepos.Clear();
+        _hubFiles.Clear();
+        SetUIEnabled(false);
+
+        try
+        {
+            var repos = await _hfService.SearchAsync(query, 20, ct);
+            foreach (var repo in repos)
+            {
+                if (ct.IsCancellationRequested) break;
+                _hubRepos.Add(new HubRepoViewModel(repo));
+            }
+            ProgressStatusTextBlock.Text = $"Found {_hubRepos.Count} GGUF repositories.";
+            HubRepoEmptyText.Visibility = _hubRepos.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            ApplySortIfActive(HubRepoListView);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "Hub search failed");
+            ProgressStatusTextBlock.Text = "Search failed";
+            HubRepoEmptyText.Visibility = Visibility.Visible;
+            MessageBox.Show($"Search failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetUIEnabled(true);
+        }
+    }
+
+    private async void HubRepoListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _hubFiles.Clear();
+        HubDownloadButton.IsEnabled = false;
+        var selected = HubRepoListView.SelectedItem as HubRepoViewModel;
+        if (selected == null)
+        {
+            HubFileEmptyText.Text = "Select a repository above to see its GGUF files.";
+            HubFileEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        HubFileEmptyText.Text = "Loading files...";
+        HubFileEmptyText.Visibility = Visibility.Visible;
+
+        try
+        {
+            ProgressStatusTextBlock.Text = $"Listing files for {selected.RepoId}...";
+            var expectedRepoId = selected.RepoId;
+            var files = await _hfService.ListGgufFilesAsync(expectedRepoId, CancellationToken.None);
+            var current = HubRepoListView.SelectedItem as HubRepoViewModel;
+            if (current == null || current.RepoId != expectedRepoId)
+                return;
+            foreach (var file in files)
+            {
+                long? size = null;
+                try
+                {
+                    size = await _hfService.GetFileSizeAsync(expectedRepoId, file.FilePath, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, $"Failed to get size for {expectedRepoId}/{file.FilePath}");
+                }
+                var cur = HubRepoListView.SelectedItem as HubRepoViewModel;
+                if (cur == null || cur.RepoId != expectedRepoId)
+                    break;
+                _hubFiles.Add(new HubFileViewModel(file.FilePath, size));
+            }
+            ProgressStatusTextBlock.Text = $"Found {_hubFiles.Count} GGUF file(s).";
+            HubFileEmptyText.Visibility = _hubFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (_hubFiles.Count == 0)
+            {
+                HubFileEmptyText.Text = "No GGUF files found in this repository.";
+            }
+            ApplySortIfActive(HubFileListView);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "Hub file list failed");
+            ProgressStatusTextBlock.Text = "Failed to list files";
+            HubFileEmptyText.Text = "Failed to list files.";
+            HubFileEmptyText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void HubFileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        HubDownloadButton.IsEnabled = HubFileListView.SelectedItem != null && _downloadCts == null;
+    }
+
+    private async void AdvancedRepoListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _advancedFiles.Clear();
+        var selected = AdvancedRepoListView.SelectedItem as HubRepoViewModel;
+        if (selected == null)
+        {
+            AdvancedFileEmptyText.Text = "Select a repository above to see its files.";
+            AdvancedFileEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        RepoIdTextBox.Text = selected.RepoId;
+        if (!_isLlmMode)
+        {
+            FileNameTextBox.Text = "";
+        }
+        else
+        {
+            LlmSubdirTextBox.Text = "";
+        }
+
+        AdvancedFileEmptyText.Text = "Loading files...";
+        AdvancedFileEmptyText.Visibility = Visibility.Visible;
+
+        try
+        {
+            ProgressStatusTextBlock.Text = $"Listing files for {selected.RepoId}...";
+            var files = await _hfService.ListRepoFilesAsync(selected.RepoId, CancellationToken.None);
+            var current = AdvancedRepoListView.SelectedItem as HubRepoViewModel;
+            if (current == null || current.RepoId != selected.RepoId)
+                return;
+
+            var filteredFiles = _isLlmMode ? files : files.Where(f => f.FilePath.EndsWith(".bin", StringComparison.OrdinalIgnoreCase));
+
+            foreach (var file in filteredFiles)
+            {
+                long? size = null;
+                try
+                {
+                    size = await _hfService.GetFileSizeAsync(selected.RepoId, file.FilePath, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, $"Failed to get size for {selected.RepoId}/{file.FilePath}");
+                }
+                var cur = AdvancedRepoListView.SelectedItem as HubRepoViewModel;
+                if (cur == null || cur.RepoId != selected.RepoId)
+                    break;
+                _advancedFiles.Add(new HubFileViewModel(file.FilePath, size));
+            }
+
+            ProgressStatusTextBlock.Text = $"Found {_advancedFiles.Count} file(s).";
+            AdvancedFileEmptyText.Visibility = _advancedFiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (_advancedFiles.Count == 0)
+            {
+                AdvancedFileEmptyText.Text = _isLlmMode ? "No files found in this repository." : "No .bin files found in this repository.";
+            }
+            ApplySortIfActive(AdvancedFileListView);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "Advanced file list failed");
+            ProgressStatusTextBlock.Text = "Failed to list files";
+            AdvancedFileEmptyText.Text = "Failed to list files.";
+            AdvancedFileEmptyText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void AdvancedFileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var selected = AdvancedFileListView.SelectedItem as HubFileViewModel;
+        if (selected == null) return;
+
+        if (_isLlmMode)
+        {
+            var lastSlash = selected.FilePath.LastIndexOf('/');
+            var dir = lastSlash > 0 ? selected.FilePath.Substring(0, lastSlash + 1) : "";
+            LlmSubdirTextBox.Text = dir;
+        }
+        else
+        {
+            FileNameTextBox.Text = selected.FileName;
+        }
+    }
+
+    private void OpenHuggingFace_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is string repoId)
+        {
+            var url = $"https://huggingface.co/{repoId}";
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, $"Failed to open Hugging Face URL: {url}");
+            }
+        }
+    }
+
+    private async void HubDownloadButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRepo = HubRepoListView.SelectedItem as HubRepoViewModel;
+        var selectedFile = HubFileListView.SelectedItem as HubFileViewModel;
+        if (selectedRepo == null || selectedFile == null) return;
+
+        var destination = _ggufStore.GetDownloadPath(selectedRepo.RepoId, selectedFile.FileName);
+        if (File.Exists(destination))
+        {
+            var overwrite = MessageBox.Show($"'{selectedFile.FileName}' already exists locally. Overwrite?", "Confirm Overwrite", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (overwrite != MessageBoxResult.Yes) return;
+        }
+
+        _downloadCts = new CancellationTokenSource();
+        SetUIEnabled(false);
+
+        try
+        {
+            if (File.Exists(destination))
+            {
+                File.Delete(destination);
+            }
+            ProgressStatusTextBlock.Text = $"Downloading {selectedFile.FileName}...";
+            DownloadProgressBar.Value = 0;
+            ProgressPctTextBlock.Text = "0%";
+
+            var progress = new Progress<(long Received, long Total)>(p =>
+            {
+                if (p.Total > 0)
+                {
+                    var pct = (double)p.Received / p.Total * 100;
+                    Dispatcher.Invoke(() =>
+                    {
+                        DownloadProgressBar.Value = pct;
+                        ProgressPctTextBlock.Text = $"{pct:F0}%";
+                        var mb = p.Received / 1024.0 / 1024.0;
+                        var totalMb = p.Total / 1024.0 / 1024.0;
+                        ProgressStatusTextBlock.Text = $"Downloading... {mb:F1} / {totalMb:F1} MB";
+                    });
+                }
+            });
+
+            await _hfService.DownloadAsync(selectedRepo.RepoId, selectedFile.FilePath, destination, progress, _downloadCts.Token);
+
+            ProgressStatusTextBlock.Text = "Download completed successfully";
+            DownloadProgressBar.Value = 100;
+            ProgressPctTextBlock.Text = "100%";
+            await RefreshListsAsync();
+            MessageBox.Show($"Successfully downloaded '{selectedFile.FileName}'.", "Download Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            ProgressStatusTextBlock.Text = "Download cancelled";
+            DownloadProgressBar.Value = 0;
+            ProgressPctTextBlock.Text = "";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, $"Hub download failed: {selectedFile.FilePath}");
+            ProgressStatusTextBlock.Text = "Download failed";
+            MessageBox.Show($"Download failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _downloadCts?.Dispose();
+            _downloadCts = null;
+            SetUIEnabled(true);
         }
     }
 
@@ -749,6 +1140,205 @@ public partial class CustomModelManagerWindow : Window
         RefreshDownloadedButton.IsEnabled = enabled;
         DownloadCuratedButton.IsEnabled = enabled;
         DownloadAdvancedButton.IsEnabled = enabled;
+        HubSearchTextBox.IsEnabled = enabled;
+        HubSearchButton.IsEnabled = enabled;
+        HubRepoListView.IsHitTestVisible = enabled;
+        HubRepoListView.Opacity = enabled ? 1.0 : 0.6;
+        HubFileListView.IsHitTestVisible = enabled;
+        HubFileListView.Opacity = enabled ? 1.0 : 0.6;
+        HubDownloadButton.IsEnabled = enabled && HubFileListView.SelectedItem != null;
+        AdvancedSearchTextBox.IsEnabled = enabled;
+        AdvancedSearchButton.IsEnabled = enabled;
+        AdvancedRepoListView.IsHitTestVisible = enabled;
+        AdvancedRepoListView.Opacity = enabled ? 1.0 : 0.6;
+        AdvancedFileListView.IsHitTestVisible = enabled;
+        AdvancedFileListView.Opacity = enabled ? 1.0 : 0.6;
+    }
+
+    private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
+    {
+        var headerClicked = e.OriginalSource as GridViewColumnHeader;
+        if (headerClicked == null || headerClicked.Column == null)
+            return;
+
+        string? headerText = headerClicked.Column.Header as string;
+        if (string.IsNullOrEmpty(headerText))
+            return;
+
+        var listView = sender as ListView;
+        if (listView == null)
+            return;
+
+        string? sortBy = GetSortPropertyByHeader(listView, headerText);
+        if (string.IsNullOrEmpty(sortBy))
+            return;
+
+        var (activeSortBy, activeSortDirection) = GetSortState(listView);
+
+        ListSortDirection direction;
+        if (activeSortBy == sortBy)
+        {
+            direction = activeSortDirection == ListSortDirection.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+        }
+        else
+        {
+            direction = ListSortDirection.Ascending;
+        }
+
+        SetSortState(listView, sortBy, direction);
+        Sort(listView, sortBy, direction);
+        UpdateHeaderSymbols(listView, headerClicked, direction);
+    }
+
+    private string? GetSortPropertyByHeader(ListView listView, string headerText)
+    {
+        string cleanText = headerText.Replace(" ▲", "").Replace(" ▼", "").Trim();
+
+        if (listView == DownloadedListView)
+        {
+            return cleanText switch
+            {
+                "File Name" or "Folder Name" => "FileName",
+                "File Path" or "Storage Path" => "RelativePath",
+                "Size" => "SizeMegabytes",
+                _ => null
+            };
+        }
+        else if (listView == RecommendedListView)
+        {
+            return cleanText switch
+            {
+                "Model Name" => "DisplayName",
+                "Description" => "Description",
+                "Size" => "SizeMegabytes",
+                "Status" => "Status",
+                _ => null
+            };
+        }
+        else if (listView == HubRepoListView)
+        {
+            return cleanText switch
+            {
+                "Model" => "DisplayName",
+                "Downloads" => "Downloads",
+                "Tags" => "TagsText",
+                _ => null
+            };
+        }
+        else if (listView == HubFileListView)
+        {
+            return cleanText switch
+            {
+                "File" => "FileName",
+                "Size" => "SizeBytes",
+                _ => null
+            };
+        }
+        else if (listView == AdvancedRepoListView)
+        {
+            return cleanText switch
+            {
+                "Model" => "DisplayName",
+                "Downloads" => "Downloads",
+                "Tags" => "TagsText",
+                _ => null
+            };
+        }
+        else if (listView == AdvancedFileListView)
+        {
+            return cleanText switch
+            {
+                "File" => "FileName",
+                "Size" => "SizeBytes",
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    private (string? SortBy, ListSortDirection Direction) GetSortState(ListView listView)
+    {
+        if (listView == DownloadedListView) return (_downloadedSortBy, _downloadedSortDirection);
+        if (listView == RecommendedListView) return (_recommendedSortBy, _recommendedSortDirection);
+        if (listView == HubRepoListView) return (_hubRepoSortBy, _hubRepoSortDirection);
+        if (listView == HubFileListView) return (_hubFileSortBy, _hubFileSortDirection);
+        if (listView == AdvancedRepoListView) return (_advancedRepoSortBy, _advancedRepoSortDirection);
+        if (listView == AdvancedFileListView) return (_advancedFileSortBy, _advancedFileSortDirection);
+        return (null, ListSortDirection.Ascending);
+    }
+
+    private void SetSortState(ListView listView, string sortBy, ListSortDirection direction)
+    {
+        if (listView == DownloadedListView) { _downloadedSortBy = sortBy; _downloadedSortDirection = direction; }
+        else if (listView == RecommendedListView) { _recommendedSortBy = sortBy; _recommendedSortDirection = direction; }
+        else if (listView == HubRepoListView) { _hubRepoSortBy = sortBy; _hubRepoSortDirection = direction; }
+        else if (listView == HubFileListView) { _hubFileSortBy = sortBy; _hubFileSortDirection = direction; }
+        else if (listView == AdvancedRepoListView) { _advancedRepoSortBy = sortBy; _advancedRepoSortDirection = direction; }
+        else if (listView == AdvancedFileListView) { _advancedFileSortBy = sortBy; _advancedFileSortDirection = direction; }
+    }
+
+    private void Sort(ListView listView, string sortBy, ListSortDirection direction)
+    {
+        var dataView = CollectionViewSource.GetDefaultView(listView.ItemsSource);
+        if (dataView is ListCollectionView listCollectionView)
+        {
+            listCollectionView.SortDescriptions.Clear();
+            listCollectionView.CustomSort = null;
+
+            if (listView == HubFileListView && sortBy == "SizeBytes")
+            {
+                listCollectionView.CustomSort = new SizeBytesComparer(direction);
+            }
+            else if (listView == AdvancedFileListView && sortBy == "SizeBytes")
+            {
+                listCollectionView.CustomSort = new SizeBytesComparer(direction);
+            }
+            else
+            {
+                listCollectionView.SortDescriptions.Add(new SortDescription(sortBy, direction));
+            }
+
+            listCollectionView.Refresh();
+        }
+        else if (dataView != null)
+        {
+            dataView.SortDescriptions.Clear();
+            dataView.SortDescriptions.Add(new SortDescription(sortBy, direction));
+            dataView.Refresh();
+        }
+    }
+
+    private void UpdateHeaderSymbols(ListView listView, GridViewColumnHeader clickedHeader, ListSortDirection direction)
+    {
+        if (listView.View is not GridView gridView)
+            return;
+
+        foreach (var column in gridView.Columns)
+        {
+            if (column.Header is string headerText)
+            {
+                headerText = headerText.Replace(" ▲", "").Replace(" ▼", "");
+
+                if (column == clickedHeader.Column)
+                {
+                    headerText += (direction == ListSortDirection.Ascending) ? " ▲" : " ▼";
+                }
+
+                column.Header = headerText;
+            }
+        }
+    }
+
+    private void ApplySortIfActive(ListView listView)
+    {
+        var (sortBy, direction) = GetSortState(listView);
+        if (!string.IsNullOrEmpty(sortBy))
+        {
+            Sort(listView, sortBy, direction);
+        }
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -766,6 +1356,10 @@ public partial class CustomModelManagerWindow : Window
                 return;
             }
         }
+        _hubSearchCts?.Cancel();
+        _hubSearchCts?.Dispose();
+        _advancedSearchCts?.Cancel();
+        _advancedSearchCts?.Dispose();
         base.OnClosing(e);
     }
 }
@@ -776,6 +1370,7 @@ public class DownloadedModelInfo
     public required string RelativePath { get; set; }
     public required string SizeDescription { get; set; }
     public required string FullPath { get; set; }
+    public double SizeMegabytes { get; set; }
 }
 
 public class RecommendedModelInfo
@@ -786,5 +1381,64 @@ public class RecommendedModelInfo
     public required string FileName { get; set; }
     public required string SizeDescription { get; set; }
     public required string Status { get; set; }
+    public double SizeMegabytes { get; set; }
 }
 
+public class HubRepoViewModel
+{
+    public string RepoId { get; }
+    public string DisplayName { get; }
+    public long Downloads { get; }
+    public string DownloadsText { get; }
+    public string TagsText { get; }
+
+    public HubRepoViewModel(HfRepoInfo repo)
+    {
+        RepoId = repo.RepoId;
+        DisplayName = repo.DisplayName;
+        Downloads = repo.Downloads;
+        DownloadsText = repo.Downloads >= 1000 ? $"{repo.Downloads / 1000.0:F1}k" : repo.Downloads.ToString();
+        TagsText = string.Join(", ", repo.Tags.Where(t => !t.Equals("gguf", StringComparison.OrdinalIgnoreCase)).Take(5));
+    }
+}
+
+public class HubFileViewModel
+{
+    public string FilePath { get; }
+    public string FileName { get; }
+    public string SizeText { get; }
+    public long? SizeBytes { get; }
+
+    public HubFileViewModel(string filePath, long? sizeBytes)
+    {
+        FilePath = filePath;
+        FileName = Path.GetFileName(filePath);
+        SizeBytes = sizeBytes;
+        if (sizeBytes.HasValue)
+        {
+            var mb = sizeBytes.Value / 1024.0 / 1024.0;
+            SizeText = mb >= 1024 ? $"{mb / 1024:F1} GB" : $"{mb:F0} MB";
+        }
+        else
+        {
+            SizeText = "Unknown";
+        }
+    }
+}
+
+public class SizeBytesComparer : IComparer
+{
+    private readonly ListSortDirection _direction;
+    public SizeBytesComparer(ListSortDirection direction) => _direction = direction;
+
+    public int Compare(object? x, object? y)
+    {
+        if (x is not HubFileViewModel a || y is not HubFileViewModel b)
+            return 0;
+
+        var av = a.SizeBytes ?? long.MaxValue;
+        var bv = b.SizeBytes ?? long.MaxValue;
+        var result = av.CompareTo(bv);
+        return _direction == ListSortDirection.Ascending ? result : -result;
+    }
+}

@@ -47,7 +47,7 @@ public class FoundryTranscriptionProvider : ITranscriptionProvider
             sb.Append(text);
         }
 
-        _fileLogger.Log($"Foundry transcription: {sb}");
+        _fileLogger.Log($"Foundry transcription using model '{_modelManager.LoadedWhisperModelAlias ?? "unknown"}': {sb}");
         return sb.ToString();
     }
 }

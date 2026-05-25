@@ -202,6 +202,8 @@ public partial class App : Application
         services.AddSingleton<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<ITextFormatter, TextFormatter>();
         services.AddSingleton<IModelCatalogService, ModelCatalogService>();
+        services.AddSingleton<IHuggingFaceService, HuggingFaceService>();
+        services.AddSingleton<IGgufModelStore, GgufModelStore>();
 
         // Pipeline and recording
         services.AddSingleton<IAudioRecorderService, AudioRecorderService>();

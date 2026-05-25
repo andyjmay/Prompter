@@ -140,7 +140,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _isStopping = true;
         }
 
-        _logger.Log("Pipeline: StopRecordingAndProcess called.");
+        _logger.Log($"Pipeline: StopRecordingAndProcess called with mode '{mode}'.");
         _audioFeedback.PlayStop();
         _maxDurationCts?.Cancel();
         _session?.StopRecording();
@@ -222,6 +222,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _uiManager.UpdateProcessingStage("Transcribing…");
         var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
         rawText = rawText.Trim();
+        _logger.Log($"Transcription complete using Whisper model '{_modelManager.LoadedWhisperModelAlias ?? "unknown"}'.");
         if (string.IsNullOrWhiteSpace(rawText))
         {
             _logger.Log("Transcription empty.");

@@ -17,7 +17,7 @@ public interface IModelManager : IAsyncDisposable
     Task UnloadWhisperModelAsync();
     Task UnloadModelAsync(string alias);
     Task DownloadModelAsync(string alias);
-    Task<OpenAIChatClient> GetChatClientAsync();
+    Task<IChatClient> GetChatClientAsync();
     Task<OpenAIAudioClient> GetAudioClientAsync();
     event Action<string, float>? ModelDownloadProgress;
 }

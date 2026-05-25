@@ -5,7 +5,7 @@ using Prompter.Services;
 
 namespace Prompter.ViewModels;
 
-public class TrayIconViewModel : IAsyncDisposable
+public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotifyPropertyChanged
 {
     private readonly IConfigService _configService;
     private readonly IHotkeyService _hotkeyService;
@@ -17,6 +17,8 @@ public class TrayIconViewModel : IAsyncDisposable
     private readonly IModelManager _modelManager;
     private readonly ITextFormatter _textFormatter;
     private readonly IDialogService _dialogService;
+    private readonly IHuggingFaceService _hfService;
+    private readonly IGgufModelStore _ggufStore;
     private AppConfig _config;
     private readonly EventHandler<AppConfig> _onConfigChanged;
 
@@ -42,7 +44,9 @@ public class TrayIconViewModel : IAsyncDisposable
         IModelCatalogService modelCatalog,
         IModelManager modelManager,
         ITextFormatter textFormatter,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IHuggingFaceService hfService,
+        IGgufModelStore ggufStore)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
@@ -54,6 +58,8 @@ public class TrayIconViewModel : IAsyncDisposable
         _modelManager = modelManager;
         _textFormatter = textFormatter;
         _dialogService = dialogService;
+        _hfService = hfService;
+        _ggufStore = ggufStore;
         _config = configService.Load();
 
         OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
@@ -61,7 +67,14 @@ public class TrayIconViewModel : IAsyncDisposable
         SetModeCommand = new RelayCommand(param => SetMode(param?.ToString()));
         CopyLastOutputCommand = new RelayCommand(_ => CopyLastOutput());
 
-        _onConfigChanged = (_, cfg) => _config = cfg;
+        _onConfigChanged = (_, cfg) =>
+        {
+            _config = cfg;
+            OnPropertyChanged(nameof(IsStandard));
+            OnPropertyChanged(nameof(IsFormal));
+            OnPropertyChanged(nameof(IsRaw));
+            OnPropertyChanged(nameof(IsDebug));
+        };
         _configService.ConfigChanged += _onConfigChanged;
     }
 
@@ -84,7 +97,9 @@ public class TrayIconViewModel : IAsyncDisposable
             _logger,
             _modelCatalog,
             _modelManager,
-            _textFormatter);
+            _textFormatter,
+            _hfService,
+            _ggufStore);
 
         _config = _configService.Load();
 

@@ -16,6 +16,7 @@
         <local:BoolToTextConverter x:Key="BoolToActiveConverter" TrueText="Active" FalseText="No"/>
         <local:BoolToBrushConverter x:Key="BoolToColorConverter" TrueBrush="#FF32CD32" FalseBrush="#FFFF4500"/>
         <local:BoolToBrushConverter x:Key="BoolToLoadedColorConverter" TrueBrush="#FF00BFFF" FalseBrush="#FF888888"/>
+        <local:BoolToBrushConverter x:Key="BoolToErrorColorConverter" TrueBrush="#FFFF5555" FalseBrush="#FFCCCCCC"/>
 
         <!-- Modern Flat Dark Styles -->
         <Style TargetType="TextBlock">
@@ -529,6 +530,8 @@
                             <ComboBox x:Name="ChatModelComboBox" SelectionChanged="ChatModelComboBox_SelectionChanged" HorizontalAlignment="Stretch"/>
                             <TextBox x:Name="CustomModelTextBox" Margin="0,6,0,0" Visibility="Collapsed" ToolTip="Enter the exact Foundry Local model alias"/>
                             <TextBlock x:Name="ChatModelStatusText" FontSize="11" Foreground="#FF32CD32" Margin="0,4,0,0" Text=""/>
+                            <TextBlock Text="Hugging Face Token (Optional)" FontWeight="SemiBold" Margin="0,10,0,4" FontSize="11" Foreground="#FF888888"/>
+                            <TextBox x:Name="HfTokenTextBox" ToolTip="Optional token for gated models and higher rate limits on Hugging Face" FontSize="12"/>
                         </StackPanel>
                     </Grid>
 
@@ -738,6 +741,44 @@
                         </Grid>
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 4: Logs -->
+            <TabItem Header="Logs">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="Filter Logs" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+                            <TextBox x:Name="LogsFilterTextBox" Padding="8,6" TextChanged="LogsFilterTextBox_TextChanged"/>
+                        </StackPanel>
+                        <Button x:Name="ClearLogsButton" Grid.Column="1" Content="Clear Logs" VerticalAlignment="Bottom" Click="ClearLogsButton_Click"/>
+                    </Grid>
+
+                    <ListView x:Name="LogsListView" Grid.Row="1" Margin="0,0,0,12">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Timestamp" Width="140" DisplayMemberBinding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
+                                <GridViewColumn Header="Message" Width="360">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{Binding IsError, Converter={StaticResource BoolToErrorColorConverter}}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="File" Width="100" DisplayMemberBinding="{Binding SourceFile}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
             </TabItem>
         </TabControl>
 

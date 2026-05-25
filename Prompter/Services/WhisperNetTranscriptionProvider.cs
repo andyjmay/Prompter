@@ -87,7 +87,8 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
 
         try
         {
-            _fileLogger.Log($"Starting Whisper.net transcription for: {wavPath} (Language: {language})");
+            var modelName = Path.GetFileName(_configService.Load().CustomWhisperModelPath);
+            _fileLogger.Log($"Starting Whisper.net transcription with model '{modelName}' for: {wavPath} (Language: {language})");
 
             using var processor = _factory.CreateBuilder()
                 .WithLanguage(language)
@@ -105,7 +106,7 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
                 }
             }
 
-            _fileLogger.Log($"Whisper.net transcription completed. Length: {sb.Length}");
+            _fileLogger.Log($"Whisper.net transcription with model '{modelName}' completed. Length: {sb.Length}");
             return sb.ToString();
         }
         catch (Exception ex)

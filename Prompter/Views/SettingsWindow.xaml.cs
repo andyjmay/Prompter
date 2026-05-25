@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Collections;
 using System.ComponentModel;
 using System.Linq;
@@ -21,6 +21,8 @@ public partial class SettingsWindow : Window
     private readonly IFileLogger _logger;
     private readonly IModelCatalogService _modelCatalog;
     private readonly IModelManager _modelManager;
+    private readonly IHuggingFaceService _hfService;
+    private readonly IGgufModelStore _ggufStore;
     private AppConfig _config;
     private DispatcherTimer? _captureTimer;
     private bool _finalizing;
@@ -34,6 +36,7 @@ public partial class SettingsWindow : Window
     private CancellationTokenSource? _testCts;
     private bool _populatingChatModels;
     private bool _populatingWhisperModels;
+    private List<LogEntry> _allLogEntries = new();
 
     public SettingsWindow(
         IConfigService configService,
@@ -42,7 +45,9 @@ public partial class SettingsWindow : Window
         IFileLogger logger,
         IModelCatalogService modelCatalog,
         IModelManager modelManager,
-        ITextFormatter textFormatter)
+        ITextFormatter textFormatter,
+        IHuggingFaceService hfService,
+        IGgufModelStore ggufStore)
     {
         InitializeComponent();
         _configService = configService;
@@ -52,6 +57,8 @@ public partial class SettingsWindow : Window
         _modelCatalog = modelCatalog;
         _modelManager = modelManager;
         _textFormatter = textFormatter;
+        _hfService = hfService;
+        _ggufStore = ggufStore;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -65,6 +72,7 @@ public partial class SettingsWindow : Window
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
         NotifyOnOutputReadyCheckBox.IsChecked = _config.NotifyOnOutputReady;
         CustomPromptTextBox.Text = _config.CustomSystemPrompt ?? string.Empty;
+        HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
         PasteThresholdTextBox.Text = _config.PasteThresholdCharacters.ToString();
@@ -76,6 +84,7 @@ public partial class SettingsWindow : Window
         _ = RefreshModelsDashboardAsync();
         DetectGpuStatus();
         InitializeAppearanceControls();
+        LoadLogs();
     }
 
     private void InitializeAppearanceControls()
@@ -176,6 +185,20 @@ public partial class SettingsWindow : Window
                 _displayNameToAlias[displayName] = alias;
                 ChatModelComboBox.Items.Add(displayName);
             }
+
+            var ggufDir = _ggufStore.BaseDirectory;
+            if (Directory.Exists(ggufDir))
+            {
+                var files = Directory.GetFiles(ggufDir, "*.gguf", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    var name = Path.GetFileName(file);
+                    var displayName = $"Custom: {name}";
+                    _displayNameToAlias[displayName] = file;
+                    ChatModelComboBox.Items.Add(displayName);
+                }
+            }
+
             ChatModelComboBox.Items.Add(ModelCatalog.OtherOption);
             ChatModelComboBox.IsEnabled = true;
             LoadingModelsText.Visibility = Visibility.Collapsed;
@@ -185,6 +208,21 @@ public partial class SettingsWindow : Window
             if (configuredDisplay != null)
             {
                 ChatModelComboBox.SelectedItem = configuredDisplay;
+            }
+            else if (_config.UseCustomChat && !string.IsNullOrWhiteSpace(_config.CustomChatModelPath))
+            {
+                var customName = Path.GetFileName(_config.CustomChatModelPath);
+                var displayName = $"Custom: {customName}";
+                if (ChatModelComboBox.Items.Contains(displayName))
+                {
+                    ChatModelComboBox.SelectedItem = displayName;
+                }
+                else
+                {
+                    ChatModelComboBox.SelectedItem = ModelCatalog.OtherOption;
+                    CustomModelTextBox.Text = configuredAlias;
+                    CustomModelTextBox.Visibility = Visibility.Visible;
+                }
             }
             else if (!string.IsNullOrWhiteSpace(configuredAlias))
             {
@@ -402,6 +440,12 @@ public partial class SettingsWindow : Window
             CustomModelTextBox.Visibility = Visibility.Visible;
             ChatModelStatusText.Text = "";
         }
+        else if (selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase))
+        {
+            CustomModelTextBox.Visibility = Visibility.Collapsed;
+            CustomModelTextBox.Text = string.Empty;
+            ChatModelStatusText.Text = "Custom model selected";
+        }
         else
         {
             CustomModelTextBox.Visibility = Visibility.Collapsed;
@@ -430,7 +474,7 @@ public partial class SettingsWindow : Window
 
     private void ManageCustomModelsButton_Click(object sender, RoutedEventArgs e)
     {
-        var managerWin = new CustomModelManagerWindow(_configService, _logger)
+        var managerWin = new CustomModelManagerWindow(_configService, _logger, _hfService, _ggufStore)
         {
             Owner = this
         };
@@ -691,9 +735,22 @@ public partial class SettingsWindow : Window
         };
 
         var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
-        var proposedAlias = selectedDisplay == ModelCatalog.OtherOption
-            ? CustomModelTextBox.Text.Trim()
-            : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ca) ? ca! : selectedDisplay);
+        string proposedAlias;
+        bool useCustomChat = false;
+        string customChatPath = "";
+
+        if (selectedDisplay.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase))
+        {
+            useCustomChat = true;
+            customChatPath = _displayNameToAlias.TryGetValue(selectedDisplay, out var cp) ? cp : "";
+            proposedAlias = Path.GetFileName(customChatPath);
+        }
+        else
+        {
+            proposedAlias = selectedDisplay == ModelCatalog.OtherOption
+                ? CustomModelTextBox.Text.Trim()
+                : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ca) ? ca! : selectedDisplay);
+        }
 
         if (string.IsNullOrWhiteSpace(proposedAlias))
         {
@@ -705,19 +762,27 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        bool isValid = await _modelCatalog.IsModelInCatalogAsync(proposedAlias);
-        if (!isValid)
+        if (!useCustomChat)
         {
-            var result = MessageBox.Show(
-                $"Model '{proposedAlias}' was not found in the Foundry Local catalog. It may not exist, or the catalog may still be loading.\n\nSave anyway?",
-                "Model Not Found",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-            if (result == MessageBoxResult.No)
-                return;
+            bool isValid = await _modelCatalog.IsModelInCatalogAsync(proposedAlias);
+            if (!isValid)
+            {
+                var result = MessageBox.Show(
+                    $"Model '{proposedAlias}' was not found in the Foundry Local catalog. It may not exist, or the catalog may still be loading.\n\nSave anyway?",
+                    "Model Not Found",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (result == MessageBoxResult.No)
+                    return;
+            }
         }
 
-        _config = _config with { ChatModelId = proposedAlias };
+        _config = _config with
+        {
+            ChatModelId = proposedAlias,
+            UseCustomChat = useCustomChat,
+            CustomChatModelPath = customChatPath
+        };
 
         var recordingAnchor = Enum.TryParse<OverlayAnchor>(RecordingAnchorComboBox.SelectedItem as string, out var ra) ? ra : OverlayAnchor.TopCenter;
         var previewAnchor = Enum.TryParse<OverlayAnchor>(PreviewAnchorComboBox.SelectedItem as string, out var pa) ? pa : OverlayAnchor.BottomRight;
@@ -743,7 +808,8 @@ public partial class SettingsWindow : Window
                 },
                 DurationSeconds = (int)ToastDurationSlider.Value
             },
-            OverlayStyle = BuildStyleFromControls()
+            OverlayStyle = BuildStyleFromControls(),
+            HuggingFaceToken = HfTokenTextBox.Text.Trim()
         };
 
         _startupService.SetEnabled(_config.AutoStartWithWindows);
@@ -967,6 +1033,66 @@ public partial class SettingsWindow : Window
                 }
             }
         }
+    }
+
+    private void LoadLogs()
+    {
+        try
+        {
+            _allLogEntries = _logger.GetRecentLogs(maxEntries: 5000).ToList();
+            LogsListView.ItemsSource = _allLogEntries;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "LoadLogs");
+        }
+    }
+
+    private void ClearLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Are you sure you want to clear all logs? This action cannot be undone.",
+            "Clear Logs",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        _logger.ClearLogs();
+        _allLogEntries.Clear();
+        LogsListView.ItemsSource = null;
+        LogsFilterTextBox.Text = "";
+    }
+
+    private void LogsFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (LogsListView.ItemsSource == null)
+            return;
+
+        var view = CollectionViewSource.GetDefaultView(LogsListView.ItemsSource);
+        if (view == null)
+            return;
+
+        var filterText = LogsFilterTextBox.Text.Trim();
+        if (string.IsNullOrEmpty(filterText))
+        {
+            view.Filter = null;
+        }
+        else
+        {
+            view.Filter = obj =>
+            {
+                if (obj is not LogEntry entry)
+                    return false;
+
+                return entry.Message.Contains(filterText, StringComparison.OrdinalIgnoreCase)
+                    || entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture).Contains(filterText, StringComparison.OrdinalIgnoreCase)
+                    || entry.SourceFile.Contains(filterText, StringComparison.OrdinalIgnoreCase);
+            };
+        }
+
+        view.Refresh();
     }
 
     private async void TestModelButton_Click(object sender, RoutedEventArgs e)

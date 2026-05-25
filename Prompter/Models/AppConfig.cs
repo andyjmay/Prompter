@@ -67,6 +67,9 @@ public record AppConfig
     public string WhisperModelId { get; init; } = "whisper-tiny";
     public bool UseCustomWhisper { get; init; } = false;
     public string CustomWhisperModelPath { get; init; } = "";
+    public bool UseCustomChat { get; init; } = false;
+    public string CustomChatModelPath { get; init; } = "";
+    public string HuggingFaceToken { get; init; } = "";
     public int PasteThresholdCharacters { get; init; } = 150;
     public bool UseClipboardPaste { get; init; } = true;
     public int ProcessingTimeoutSeconds { get; init; } = 120;
