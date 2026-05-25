@@ -8,12 +8,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
 {
     private readonly IAudioRecorderService _recorder;
     private readonly IModelManager _modelManager;
-    private readonly ITranscriptionService _transcriptionService;
-    private readonly ITextFormatter _textFormatter;
+    private readonly IPipelineProcessor _pipelineProcessor;
     private readonly IClipboardService _clipboard;
     private readonly IInputInjectorService _injector;
     private readonly IConfigService _configService;
-    private readonly ISnippetMatcher _snippetMatcher;
     private readonly IAudioFeedbackService _audioFeedback;
     private readonly IFileLogger _logger;
     private readonly Dispatcher _dispatcher;
@@ -33,12 +31,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     public PipelineOrchestrator(
         IAudioRecorderService recorder,
         IModelManager modelManager,
-        ITranscriptionService transcriptionService,
-        ITextFormatter textFormatter,
+        IPipelineProcessor pipelineProcessor,
         IClipboardService clipboard,
         IInputInjectorService injector,
         IConfigService configService,
-        ISnippetMatcher snippetMatcher,
         IAudioFeedbackService audioFeedback,
         IFileLogger logger,
         Dispatcher dispatcher,
@@ -47,12 +43,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     {
         _recorder = recorder;
         _modelManager = modelManager;
-        _transcriptionService = transcriptionService;
-        _textFormatter = textFormatter;
+        _pipelineProcessor = pipelineProcessor;
         _clipboard = clipboard;
         _injector = injector;
         _configService = configService;
-        _snippetMatcher = snippetMatcher;
         _audioFeedback = audioFeedback;
         _logger = logger;
         _dispatcher = dispatcher;
@@ -87,12 +81,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             return;
         }
 
-        // Only show feedback once the microphone is actually capturing.
         _uiManager.ShowRecordingOverlay();
-
-        // Fire-and-forget so the chime doesn't block the hook thread or the overlay.
         _ = Task.Run(() => _audioFeedback.PlayStart());
-
         ShowBalloon?.Invoke("Prompter — Recording", "Listening... Release the hotkey to stop.");
 
         _maxDurationCts?.Dispose();
@@ -214,11 +204,41 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         {
             _uiManager.UpdateProcessingStage("Loading models…");
         }
-        await _modelManager.EnsureModelsLoadedAsync();
 
         var configuredAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
             ? ModelCatalog.DefaultChatAlias
             : cfg.ChatModelId;
+
+        var result = await _pipelineProcessor.ProcessAsync(wavPath, modeId, cts.Token, new Progress<string>(stage => _uiManager.UpdateProcessingStage(stage)));
+
+        if (string.IsNullOrWhiteSpace(result.RawText))
+        {
+            _logger.Log("Transcription empty.");
+            _uiManager.HideRecordingOverlay();
+            return;
+        }
+
+        if (result.MatchedSnippetTrigger != null)
+        {
+            _logger.Log($"Snippet matched: '{result.MatchedSnippetTrigger}' — injecting expansion.");
+            ShowBalloon?.Invoke("Prompter — Snippet inserted", $"Matched '{result.MatchedSnippetTrigger}'.");
+            bool useSendKeys = false;
+            if (_injector.ContainsKeyTokens(result.FinalText))
+            {
+                try
+                {
+                    _injector.ValidateExpansion(result.FinalText);
+                    useSendKeys = true;
+                }
+                catch (ArgumentException ex)
+                {
+                    _logger.Log($"Snippet expansion contains invalid key tokens: {ex.Message}");
+                }
+            }
+            await InjectAsync(result.FinalText, generation, cfg, useSendKeys);
+            return;
+        }
+
         if (_modelManager.ChatReady && _modelManager.LoadedChatModelAlias != configuredAlias)
         {
             var loadedAlias = _modelManager.LoadedChatModelAlias!;
@@ -228,105 +248,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 $"Chat model '{configuredAlias}' was unavailable. Using '{loadedAlias}' instead.");
         }
 
-        _uiManager.UpdateProcessingStage("Transcribing…");
-        var rawText = await _transcriptionService.TranscribeAsync(wavPath, cfg.Language, cts.Token);
-        rawText = rawText.Trim();
-        if (string.IsNullOrWhiteSpace(rawText))
-        {
-            _logger.Log("Transcription empty.");
-            _uiManager.HideRecordingOverlay();
-            return;
-        }
-
-        var matchedSnippet = _snippetMatcher.Match(rawText, cfg.Snippets);
-        if (matchedSnippet != null)
-        {
-            _logger.Log($"Snippet matched: '{matchedSnippet.Trigger}' — injecting expansion.");
-            ShowBalloon?.Invoke("Prompter — Snippet inserted", $"Matched '{matchedSnippet.Trigger}'.");
-            bool useSendKeys = false;
-            if (_injector.ContainsKeyTokens(matchedSnippet.Expansion))
-            {
-                try
-                {
-                    _injector.ValidateExpansion(matchedSnippet.Expansion);
-                    useSendKeys = true;
-                }
-                catch (ArgumentException ex)
-                {
-                    _logger.Log($"Snippet expansion contains invalid key tokens: {ex.Message}");
-                }
-            }
-            await InjectAsync(matchedSnippet.Expansion, generation, cfg, useSendKeys);
-            return;
-        }
-
-        var trueRawText = rawText;
-        if (cfg.DictionaryEntries.Count > 0)
-        {
-            rawText = PersonalDictionaryProcessor.Process(rawText, cfg.DictionaryEntries, _logger);
-        }
-        if (cfg.SpokenPunctuationEnabled)
-        {
-            rawText = SpokenPunctuationProcessor.Process(rawText, cfg.Language, _logger);
-        }
-        _logger.Log($"Transcription complete using Whisper model '{_modelManager.LoadedWhisperModelAlias ?? "unknown"}'.");
-
-        string finalText;
-        bool usedFallback = false;
-
-        if (mode?.ShowDiagnosticOutput == true)
-        {
-            string formattedText;
-            string statusLine;
-
-            if (_modelManager.ChatReady && mode?.SkipFormatting != true)
-            {
-                _uiManager.UpdateProcessingStage("Formatting…");
-                try
-                {
-                    formattedText = await _textFormatter.CleanupAsync(rawText, modeId, cts.Token);
-                    statusLine = "Chat model: " + (_modelManager.LoadedChatModelAlias ?? "unknown");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogException(ex, "CleanupAsync failed in diagnostic mode");
-                    formattedText = rawText;
-                    statusLine = "Chat model failed — raw text shown below";
-                }
-            }
-            else
-            {
-                formattedText = rawText;
-                statusLine = mode?.SkipFormatting == true
-                    ? "Formatting skipped — raw text shown below"
-                    : "Chat model not loaded — raw text shown below";
-            }
-
-            finalText = $"[RAW]{Environment.NewLine}{trueRawText}{Environment.NewLine}{Environment.NewLine}[FORMATTED]{Environment.NewLine}{formattedText}{Environment.NewLine}{Environment.NewLine}[STATUS]{Environment.NewLine}{statusLine}";
-        }
-        else if (mode?.SkipFormatting == true || !_modelManager.ChatReady)
-        {
-            if (mode?.SkipFormatting != true)
-            {
-                _logger.Log("Chat model not ready — falling back to Raw.");
-                usedFallback = true;
-            }
-            finalText = rawText;
-        }
-        else
-        {
-            _uiManager.UpdateProcessingStage("Formatting…");
-            try
-            {
-                finalText = await _textFormatter.CleanupAsync(rawText, modeId, cts.Token);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogException(ex, "CleanupAsync failed — falling back to raw transcription");
-                finalText = rawText;
-                usedFallback = true;
-            }
-        }
+        bool usedFallback = result.UsedFormattingFallback;
+        string finalText = result.FinalText;
 
         if (usedFallback)
         {

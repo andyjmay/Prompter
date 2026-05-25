@@ -211,6 +211,7 @@ public partial class App : Application
         services.AddSingleton<IAudioFeedbackService, AudioFeedbackService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<IInputInjectorService, InputInjectorService>();
+        services.AddSingleton<IPipelineProcessor, PipelineProcessor>();
         services.AddSingleton<IPipelineOrchestrator, PipelineOrchestrator>();
         services.AddTransient<IRecordingUIManager, RecordingUIManager>();
 
