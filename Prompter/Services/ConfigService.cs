@@ -9,6 +9,7 @@ public class ConfigService : IConfigService
     private readonly string _configDir;
     private readonly string _configPath;
     private AppConfig? _cached;
+    private readonly Stack<AppConfig> _overrideStack = new();
     private readonly object _cacheLock = new();
     private readonly IFileLogger? _logger;
 
@@ -34,6 +35,7 @@ public class ConfigService : IConfigService
     {
         lock (_cacheLock)
         {
+            if (_overrideStack.Count > 0) return _overrideStack.Peek();
             if (_cached is not null) return _cached;
 
             if (!File.Exists(_configPath))
@@ -97,6 +99,45 @@ public class ConfigService : IConfigService
     public bool IsFirstRun()
     {
         return !File.Exists(_configPath);
+    }
+
+    public IDisposable PushTemporaryConfig(AppConfig config)
+    {
+        lock (_cacheLock)
+        {
+            var scope = new TempConfigScope(this);
+            _overrideStack.Push(config);
+            return scope;
+        }
+    }
+
+    private void PopTemporaryConfig()
+    {
+        lock (_cacheLock)
+        {
+            if (_overrideStack.Count > 0)
+                _overrideStack.Pop();
+        }
+    }
+
+    private sealed class TempConfigScope : IDisposable
+    {
+        private readonly ConfigService _service;
+        private bool _disposed;
+
+        public TempConfigScope(ConfigService service)
+        {
+            _service = service;
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                _service.PopTemporaryConfig();
+            }
+        }
     }
 
     private void SaveToDisk(AppConfig config)

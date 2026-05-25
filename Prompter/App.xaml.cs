@@ -65,6 +65,10 @@ public partial class App : Application
             startupService.SetEnabled(config.AutoStartWithWindows);
         }
 
+        // Apply theme before any UI is shown
+        var themeService = _serviceProvider.GetRequiredService<IThemeService>();
+        themeService.ApplyTheme(config.OverlayStyle.Theme);
+
         // Initialize Foundry in background
         var accessor = _serviceProvider.GetRequiredService<IFoundryLocalManagerAccessor>();
         var modelManager = _serviceProvider.GetRequiredService<IModelManager>();
@@ -190,6 +194,7 @@ public partial class App : Application
         services.AddSingleton<IFileLogger, FileLogger>();
         services.AddSingleton<IConfigService, ConfigService>();
         services.AddSingleton<IStartupService, StartupService>();
+        services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IExceptionHandler, ExceptionHandler>();
         services.AddSingleton<IFirstRunService, FirstRunService>();

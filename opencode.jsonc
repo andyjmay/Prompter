@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "windows": {
+      "type": "local",
+      "command": ["C:\\Users\\Andy\\.local\\bin\\uvx.exe", "windows-mcp", "serve"],
+      "enabled": true
+    }
+  }
+}

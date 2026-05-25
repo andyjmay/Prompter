@@ -51,6 +51,9 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
     private readonly IHuggingFaceService _hfService;
     private readonly IGgufModelStore _ggufStore;
     private readonly IInputInjectorService _inputInjectorService;
+    private readonly ITranscriptionService _transcriptionService;
+    private readonly IAudioRecorderService _audioRecorderService;
+    private readonly IThemeService _themeService;
     private AppConfig _config;
     private readonly EventHandler<AppConfig> _onConfigChanged;
 
@@ -76,7 +79,10 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         IDialogService dialogService,
         IHuggingFaceService hfService,
         IGgufModelStore ggufStore,
-        IInputInjectorService inputInjectorService)
+        IInputInjectorService inputInjectorService,
+        ITranscriptionService transcriptionService,
+        IAudioRecorderService audioRecorderService,
+        IThemeService themeService)
     {
         _configService = configService;
         _hotkeyService = hotkeyService;
@@ -91,6 +97,9 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         _hfService = hfService;
         _ggufStore = ggufStore;
         _inputInjectorService = inputInjectorService;
+        _transcriptionService = transcriptionService;
+        _audioRecorderService = audioRecorderService;
+        _themeService = themeService;
         _config = configService.Load();
 
         OpenSettingsCommand = new RelayCommand(_ => OpenSettings());
@@ -144,7 +153,10 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
             _textFormatter,
             _hfService,
             _ggufStore,
-            _inputInjectorService);
+            _inputInjectorService,
+            _transcriptionService,
+            _audioRecorderService,
+            _themeService);
 
         _config = _configService.Load();
 

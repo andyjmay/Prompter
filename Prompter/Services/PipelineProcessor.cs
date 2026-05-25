@@ -33,7 +33,7 @@ public class PipelineProcessor : IPipelineProcessor
         var mode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(modeId, StringComparison.OrdinalIgnoreCase));
 
         _logger.Log("Ensuring models are loaded...");
-        await _modelManager.EnsureModelsLoadedAsync();
+        await _modelManager.EnsureModelsLoadedAsync(modeId);
 
         var configuredAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
             ? ModelCatalog.DefaultChatAlias
@@ -115,7 +115,7 @@ public class PipelineProcessor : IPipelineProcessor
         }
         else if (mode?.SkipFormatting == true || !_modelManager.ChatReady)
         {
-            if (mode?.SkipFormatting != true)
+            if (mode?.SkipFormatting != true && !string.Equals(cfg.ChatModelId, "none", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.Log("Chat model not ready — falling back to Raw.");
                 usedFallback = true;

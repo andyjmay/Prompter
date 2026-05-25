@@ -200,7 +200,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(cfg.ProcessingTimeoutSeconds));
 
         _logger.Log("Ensuring models are loaded...");
-        if (!_modelManager.WhisperReady || !_modelManager.ChatReady)
+        bool isNoneChat = string.Equals(cfg.ChatModelId, "none", StringComparison.OrdinalIgnoreCase);
+        if (!_modelManager.WhisperReady || (!_modelManager.ChatReady && !isNoneChat))
         {
             _uiManager.UpdateProcessingStage("Loading models…");
         }

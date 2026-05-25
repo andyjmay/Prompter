@@ -20,7 +20,7 @@ public class FakeModelManager : IModelManager
 
     public Task InitializeAsync(int idleTtlMinutes) => Task.CompletedTask;
 
-    public Task EnsureModelsLoadedAsync() => Task.CompletedTask;
+    public Task EnsureModelsLoadedAsync(string? targetModeId = null) => Task.CompletedTask;
 
     public Task EnsureChatModelLoadedAsync(string alias) => Task.CompletedTask;
 

@@ -24,7 +24,18 @@ public class FakeDialogService : IDialogService
         ITextFormatter textFormatter,
         IHuggingFaceService hfService,
         IGgufModelStore ggufStore,
-        IInputInjectorService inputInjectorService) => false;
+        IInputInjectorService inputInjectorService,
+        ITranscriptionService transcriptionService,
+        IAudioRecorderService audioRecorderService,
+        IThemeService themeService) => false;
 
-    public bool ShowWelcomeDialog(string hotkeyDisplay) => false;
+    public List<string> WelcomeDialogs { get; } = new();
+    public bool ShowWelcomeDialog(string hotkeyDisplay)
+    {
+        WelcomeDialogs.Add(hotkeyDisplay);
+        return false;
+    }
+
+    public void ShowModelTestingDialog(System.Windows.Window owner, IConfigService configService, IModelCatalogService modelCatalog, IModelManager modelManager, ITranscriptionService transcriptionService, IAudioRecorderService audioRecorderService, ITextFormatter textFormatter, IFileLogger logger, IGgufModelStore ggufStore) { }
 }
+

@@ -7,7 +7,7 @@
         Height="760"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="#FF151515"
+        Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="#FFEEEEEE">
     
     <Window.Resources>
@@ -21,299 +21,6 @@
         <local:BoolToTextConverter x:Key="BoolToSkipFlag" TrueText="Skip " FalseText=""/>
         <local:BoolToTextConverter x:Key="BoolToDebugFlag" TrueText="Debug" FalseText=""/>
 
-        <!-- Modern Flat Dark Styles -->
-        <Style TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Segoe UI, Segoe UI Variable, Roboto"/>
-            <Setter Property="Foreground" Value="#FFCCCCCC"/>
-        </Style>
-
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="#FF1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#FF333333"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16"/>
-        </Style>
-
-        <Style TargetType="TabItem">
-            <Setter Property="HeaderTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Background" Value="#FF151515"/>
-            <Setter Property="Foreground" Value="#FF888888"/>
-            <Setter Property="BorderBrush" Value="#FF333333"/>
-            <Setter Property="BorderThickness" Value="1,1,1,0"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6,6,0,0"
-                                Margin="0,0,4,-1"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter x:Name="contentPresenter" ContentSource="Header" Focusable="False"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="Background" Value="#FF252525"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Foreground" Value="#FF00BFFF"/>
-                                <Setter Property="Background" Value="#FF1E1E1E"/>
-                                <Setter Property="BorderBrush" Value="#FF333333"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#FF2D2D2D"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#FF444444"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#FF00BFFF"/>
-                                <Setter Property="BorderBrush" Value="#FF00BFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#FF008B8B"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#FF1E1E1E"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#FF3A3A3A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="6,6"/>
-            <Setter Property="CaretBrush" Value="White"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
-                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#FF555555"/>
-                            </Trigger>
-                            <Trigger Property="IsFocused" Value="True">
-                                <Setter Property="BorderBrush" Value="#FF00BFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#FFDDDDDD"/>
-            <Setter Property="Background" Value="#FF1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#FF3A3A3A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,0,0,0"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="CheckBox">
-                        <BulletDecorator Background="Transparent">
-                            <BulletDecorator.Bullet>
-                                <Border x:Name="border"
-                                        Width="18"
-                                        Height="18"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="4">
-                                    <Path x:Name="checkMark"
-                                          Data="M 3 9 L 7 13 L 14 5"
-                                          Stroke="White"
-                                          StrokeThickness="2"
-                                          Visibility="Collapsed"
-                                          SnapsToDevicePixels="True"/>
-                                </Border>
-                            </BulletDecorator.Bullet>
-                            <ContentPresenter Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              RecognizesAccessKey="True"/>
-                        </BulletDecorator>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="true">
-                                <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
-                                <Setter TargetName="border" Property="Background" Value="#FF00BFFF"/>
-                                <Setter TargetName="border" Property="BorderBrush" Value="#FF00BFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="border" Property="BorderBrush" Value="#FF00BFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="false">
-                                <Setter Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ScrollBar">
-            <Setter Property="Background" Value="#FF1E1E1E"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid x:Name="Bg" SnapsToDevicePixels="true">
-                            <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageUpCommand" Background="Transparent" BorderBrush="Transparent" Focusable="false"/>
-                                </Track.DecreaseRepeatButton>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="ScrollBar.PageDownCommand" Background="Transparent" BorderBrush="Transparent" Focusable="false"/>
-                                </Track.IncreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Background="#FF444444" BorderBrush="Transparent">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Border Background="{TemplateBinding Background}" CornerRadius="5"/>
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="Orientation" Value="Horizontal">
-                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="false"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="Orientation" Value="Vertical">
-                    <Setter Property="Width" Value="10"/>
-                    <Setter Property="Height" Value="Auto"/>
-                </Trigger>
-                <Trigger Property="Orientation" Value="Horizontal">
-                    <Setter Property="Width" Value="Auto"/>
-                    <Setter Property="Height" Value="10"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="Slider">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Maximum" Value="30"/>
-            <Setter Property="Minimum" Value="1"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid>
-                            <Border Background="#FF333333" Height="4" CornerRadius="2" VerticalAlignment="Center" Margin="5,0"/>
-                            <Track x:Name="PART_Track">
-                                <Track.Thumb>
-                                    <Thumb Width="16" Height="16">
-                                        <Thumb.Template>
-                                            <ControlTemplate TargetType="Thumb">
-                                                <Ellipse Fill="#FF00BFFF" Stroke="#FF151515" StrokeThickness="2"/>
-                                            </ControlTemplate>
-                                        </Thumb.Template>
-                                    </Thumb>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="ListView">
-            <Setter Property="Background" Value="#FF151515"/>
-            <Setter Property="BorderBrush" Value="#FF333333"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-
-        <Style TargetType="ListViewItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="6,8"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="#FF252525" BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
-                            <GridViewRowPresenter Content="{TemplateBinding Content}" Columns="{TemplateBinding GridView.ColumnCollection}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#FF222222"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="#FF2A2A2A"/>
-                                <Setter TargetName="border" Property="BorderBrush" Value="#FF00BFFF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="GridViewColumnHeader">
-            <Setter Property="Background" Value="#FF1E1E1E"/>
-            <Setter Property="Foreground" Value="#FFCCCCCC"/>
-            <Setter Property="BorderBrush" Value="#FF333333"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-            <Setter Property="Padding" Value="6,4"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="GridViewColumnHeader">
-                        <Border x:Name="headerBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="headerBorder" Property="Background" Value="#FF2A2A2A"/>
-                                <Setter Property="Foreground" Value="White"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <Grid Margin="12">
@@ -563,30 +270,13 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Text Correction Model Test -->
+                    <!-- Model Sandbox Playground -->
                     <StackPanel Grid.Row="1" Margin="0,0,0,16">
-                        <TextBlock Text="Test Text Correction Model" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
-                        <TextBlock Text="Send sample text through the currently configured model to measure its response time." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="TestSampleTextBox" Grid.Column="0" Text="The quik brown fox jumps over the lazzy dog." TextWrapping="Wrap" Height="50" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0" Padding="8,6"/>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Top" Width="120">
-                                <Button x:Name="TestModelButton" Content="Run Test" Click="TestModelButton_Click" HorizontalAlignment="Stretch"/>
-                                <TextBlock x:Name="TestResultTextBlock" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12" Foreground="#FFCCCCCC" Text=""/>
-                                <Border x:Name="TestErrorIndicator" Margin="0,8,0,0" Background="#33FF0000" BorderBrush="#FFFF4444" BorderThickness="1" CornerRadius="4" Padding="4,2" Visibility="Collapsed" Cursor="Hand">
-                                    <TextBlock Text="⚠ Error" FontSize="12" Foreground="#FFFF5555" HorizontalAlignment="Center" FontWeight="SemiBold"/>
-                                    <Border.ToolTip>
-                                        <ToolTip>
-                                            <TextBlock x:Name="TestErrorToolTipText" TextWrapping="Wrap" MaxWidth="360" FontSize="12"/>
-                                        </ToolTip>
-                                    </Border.ToolTip>
-                                </Border>
-                            </StackPanel>
-                        </Grid>
+                        <TextBlock Text="Model Sandbox &amp; Playground" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,4"/>
+                        <TextBlock Text="Open a dedicated sandbox to test transcription, text formatting, edit custom prompts, and analyze generation speeds." FontSize="11" Foreground="#FF888888" Margin="0,0,0,8"/>
+                        <Button x:Name="OpenSandboxButton" Content="Open Model Playground..." Click="OpenSandboxButton_Click" HorizontalAlignment="Stretch" Padding="12,8"/>
                     </StackPanel>
+
 
                     <!-- Clipboard Paste Threshold Settings -->
                     <StackPanel Grid.Row="2" Margin="0,0,0,20">
@@ -982,7 +672,7 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="Preview" Width="100" Margin="0,0,8,0" Click="Preview_Click"/>
             <Button Content="Save Options" Width="120" Margin="0,0,8,0" Click="Save_Click"/>
-            <Button Content="Cancel" Width="100" Click="Cancel_Click" Background="#FF1E1E1E" BorderBrush="#FF333333"/>
+            <Button Content="Cancel" Width="100" Click="Cancel_Click"/>
         </StackPanel>
     </Grid>
 </Window>

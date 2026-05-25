@@ -35,7 +35,10 @@ public partial class SettingsWindow : Window
     private PreviewToast? _previewToast;
     private readonly ITextFormatter _textFormatter;
     private readonly IInputInjectorService _inputInjectorService;
-    private CancellationTokenSource? _testCts;
+    private readonly IDialogService _dialogService;
+    private readonly ITranscriptionService _transcriptionService;
+    private readonly IAudioRecorderService _audioRecorderService;
+    private readonly IThemeService _themeService;
     private bool _populatingChatModels;
     private bool _populatingWhisperModels;
     private List<LogEntry> _allLogEntries = new();
@@ -50,7 +53,11 @@ public partial class SettingsWindow : Window
         ITextFormatter textFormatter,
         IHuggingFaceService hfService,
         IGgufModelStore ggufStore,
-        IInputInjectorService inputInjectorService)
+        IInputInjectorService inputInjectorService,
+        ITranscriptionService transcriptionService,
+        IAudioRecorderService audioRecorderService,
+        IDialogService dialogService,
+        IThemeService themeService)
     {
         InitializeComponent();
         _configService = configService;
@@ -63,6 +70,10 @@ public partial class SettingsWindow : Window
         _hfService = hfService;
         _ggufStore = ggufStore;
         _inputInjectorService = inputInjectorService;
+        _transcriptionService = transcriptionService;
+        _audioRecorderService = audioRecorderService;
+        _dialogService = dialogService;
+        _themeService = themeService;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -727,7 +738,10 @@ public partial class SettingsWindow : Window
             var models = await _modelCatalog.ListAvailableChatModelsAsync();
 
             ChatModelComboBox.Items.Clear();
-            foreach (var (alias, displayName) in models)
+            _displayNameToAlias["None"] = "none";
+            ChatModelComboBox.Items.Add("None");
+
+            foreach (var (alias, displayName, _) in models)
             {
                 _displayNameToAlias[displayName] = alias;
                 ChatModelComboBox.Items.Add(displayName);
@@ -752,7 +766,11 @@ public partial class SettingsWindow : Window
 
             var configuredAlias = _config.ChatModelId;
             var configuredDisplay = models.FirstOrDefault(m => m.Alias == configuredAlias).DisplayName;
-            if (configuredDisplay != null)
+            if (string.Equals(configuredAlias, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                ChatModelComboBox.SelectedItem = "None";
+            }
+            else if (configuredDisplay != null)
             {
                 ChatModelComboBox.SelectedItem = configuredDisplay;
             }
@@ -982,7 +1000,13 @@ public partial class SettingsWindow : Window
 
         var selected = ChatModelComboBox.SelectedItem as string;
         if (selected == null) return;
-        if (selected == ModelCatalog.OtherOption)
+        if (selected == "None")
+        {
+            CustomModelTextBox.Visibility = Visibility.Collapsed;
+            CustomModelTextBox.Text = string.Empty;
+            ChatModelStatusText.Text = "Correction bypassed.";
+        }
+        else if (selected == ModelCatalog.OtherOption)
         {
             CustomModelTextBox.Visibility = Visibility.Visible;
             ChatModelStatusText.Text = "";
@@ -1334,7 +1358,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (!useCustomChat)
+        if (!useCustomChat && !string.Equals(proposedAlias, "none", StringComparison.OrdinalIgnoreCase))
         {
             bool isValid = await _modelCatalog.IsModelInCatalogAsync(proposedAlias);
             if (!isValid)
@@ -1387,6 +1411,7 @@ public partial class SettingsWindow : Window
 
         _startupService.SetEnabled(_config.AutoStartWithWindows);
         await _configService.SaveAsync(_config);
+        _themeService.ApplyTheme(_config.OverlayStyle.Theme);
 
         try
         {
@@ -1509,7 +1534,6 @@ public partial class SettingsWindow : Window
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
-        _testCts?.Cancel();
         _previewOverlay?.Close();
         _previewOverlay = null;
         _previewToast?.Close();
@@ -1668,81 +1692,42 @@ public partial class SettingsWindow : Window
 
         view.Refresh();
     }
-
-    private async void TestModelButton_Click(object sender, RoutedEventArgs e)
+    private void OpenSandboxButton_Click(object sender, RoutedEventArgs e)
     {
-        TestModelButton.IsEnabled = false;
-        TestResultTextBlock.Visibility = Visibility.Visible;
-        TestErrorIndicator.Visibility = Visibility.Collapsed;
-        TestResultTextBlock.Text = "Running...";
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _dialogService.ShowModelTestingDialog(
+            this,
+            _configService,
+            _modelCatalog,
+            _modelManager,
+            _transcriptionService,
+            _audioRecorderService,
+            _textFormatter,
+            _logger,
+            _ggufStore);
 
-        _testCts?.Dispose();
-        _testCts = new CancellationTokenSource();
-        var ct = _testCts.Token;
+        // Reload the config after closing the Sandbox to prevent stale state from overriding Sandbox changes.
+        _config = _configService.Load();
 
-        var selectedDisplay = ChatModelComboBox.SelectedItem as string ?? ModelCatalog.OtherOption;
-        var alias = selectedDisplay == ModelCatalog.OtherOption
-            ? CustomModelTextBox.Text.Trim()
-            : (_displayNameToAlias.TryGetValue(selectedDisplay, out var ta) ? ta! : selectedDisplay);
-
-        if (string.IsNullOrWhiteSpace(alias))
+        // Update UI controls with potential new values saved from the Sandbox
+        CleanEnabledCheckBox.IsChecked = _config.CleanEnabled;
+        if (CleanPromptTextBox != null)
         {
-            TestResultTextBlock.Visibility = Visibility.Visible;
-            TestErrorIndicator.Visibility = Visibility.Collapsed;
-            TestResultTextBlock.Text = "Please select a chat model first.";
-            TestModelButton.IsEnabled = true;
-            return;
+            CleanPromptTextBox.Text = _config.CleanPrompt;
         }
+        UpdateCleanPromptControlsState();
 
-        try
-        {
-            TestResultTextBlock.Text = $"Loading {alias}...";
-            await _modelManager.EnsureChatModelLoadedAsync(alias);
+        ListFormattingEnabledCheckBox.IsChecked = _config.ListFormattingEnabled;
+        SpokenPunctuationCheckBox.IsChecked = _config.SpokenPunctuationEnabled;
 
-            var sample = TestSampleTextBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(sample))
-            {
-                sample = "The quik brown fox jumps over the lazzy dog.";
-                TestSampleTextBox.Text = sample;
-            }
+        RefreshModesList();
 
-            TestResultTextBlock.Text = $"Testing {alias}...";
-            var result = await _textFormatter.CleanupAsync(sample, ModeDefaults.StandardId, ct);
-            var elapsed = sw.Elapsed;
-
-            TestResultTextBlock.Text = $"Model: {alias}\nTime: {elapsed.TotalSeconds:F2}s\nOutput: {result}";
-        }
-        catch (OperationCanceledException)
-        {
-            TestResultTextBlock.Text = "Test cancelled.";
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            _logger.LogException(ex, "Model speed test failed");
-            var msg = ex.Message.Contains("Could not load chat model", StringComparison.OrdinalIgnoreCase)
-                ? $"Model '{alias}' is not available in the catalog. Please select a valid model from the dropdown and try again."
-                : ex.Message;
-            TestResultTextBlock.Visibility = Visibility.Collapsed;
-            TestErrorIndicator.Visibility = Visibility.Visible;
-            TestErrorToolTipText.Text = $"Error after {sw.Elapsed.TotalSeconds:F2}s: {msg}";
-        }
-        finally
-        {
-            _testCts?.Dispose();
-            _testCts = null;
-            try
-            {
-                TestModelButton.IsEnabled = true;
-            }
-            catch (InvalidOperationException)
-            {
-                // Window may be closing; ignore.
-            }
-        }
+        _ = PopulateChatModelComboBoxAsync();
+        _ = PopulateWhisperModelComboBoxAsync();
+        _ = RefreshModelsDashboardAsync();
     }
 }
+
+
 
 public class ModeListItem
 {

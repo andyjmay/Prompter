@@ -118,12 +118,12 @@ public class ModelCatalogService : IModelCatalogService
         }
     }
 
-    public async Task<List<(string Alias, string DisplayName)>> ListAvailableChatModelsAsync(CancellationToken ct = default)
+    public async Task<List<(string Alias, string DisplayName, string SizeDescription)>> ListAvailableChatModelsAsync(CancellationToken ct = default)
     {
         await _accessor.InitializationCompleted;
         var catalog = await _accessor.Manager.GetCatalogAsync();
         var models = await catalog.ListModelsAsync(ct);
-        var result = new List<(string Alias, string DisplayName)>();
+        var result = new List<(string Alias, string DisplayName, string SizeDescription)>();
 
         foreach (var model in models)
         {
@@ -146,7 +146,12 @@ public class ModelCatalogService : IModelCatalogService
                 ? info.DisplayName
                 : alias;
 
-            result.Add((alias, displayName));
+            float? sizeMb = info?.FileSizeMb ?? ModelCatalog.GetSizeInMegabytes(alias);
+            string sizeDescription = sizeMb is { } mb
+                ? mb >= 1000 ? $"~{mb / 1000:F1} GB" : $"~{mb:F0} MB"
+                : ModelCatalog.GetSizeDescription(alias);
+
+            result.Add((alias, displayName, sizeDescription));
         }
 
         return result.OrderBy(m => m.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();

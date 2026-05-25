@@ -6,7 +6,7 @@
         Height="360"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="#FF1E1E1E">
+        Background="{DynamicResource WindowBackgroundBrush}">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -37,7 +37,7 @@
             </StackPanel>
         </StackPanel>
 
-        <Border Grid.Row="3" Background="#FF2A2A2A" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+        <Border Grid.Row="3" Background="{DynamicResource CardBackgroundBrush}" CornerRadius="6" Padding="12" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="First-time setup" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
                 <TextBlock Text="AI models will download in the background (about 2.5 GB). You can start dictating as soon as the speech model is ready." Foreground="#FFAAAAAA" TextWrapping="Wrap"/>

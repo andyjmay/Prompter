@@ -89,7 +89,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
         _idleTimer.Start();
     }
 
-    public async Task EnsureModelsLoadedAsync()
+    public async Task EnsureModelsLoadedAsync(string? targetModeId = null)
     {
         await _loadSemaphore.WaitAsync();
         try
@@ -101,6 +101,10 @@ public class ModelManager : IModelManager, IAsyncDisposable
             var targetChatAlias = string.IsNullOrWhiteSpace(cfg.ChatModelId)
                 ? ModelCatalog.DefaultChatAlias
                 : cfg.ChatModelId;
+
+            var targetMode = cfg.Modes.FirstOrDefault(m => m.Id.Equals(targetModeId ?? cfg.DefaultModeId, StringComparison.OrdinalIgnoreCase));
+            bool isNoneChat = string.Equals(targetChatAlias, "none", StringComparison.OrdinalIgnoreCase)
+                              || targetMode?.SkipFormatting == true;
 
             var targetWhisperAlias = string.IsNullOrWhiteSpace(cfg.WhisperModelId)
                 ? "whisper-tiny"
@@ -169,7 +173,16 @@ public class ModelManager : IModelManager, IAsyncDisposable
                     _loadedChatAlias = null;
                 }
 
-                if (_customChatClient == null || _loadedCustomChatPath != cfg.CustomChatModelPath)
+                if (isNoneChat)
+                {
+                    if (_customChatClient != null)
+                    {
+                        await _customChatClient.DisposeAsync();
+                        _customChatClient = null;
+                        _loadedCustomChatPath = null;
+                    }
+                }
+                else if (_customChatClient == null || _loadedCustomChatPath != cfg.CustomChatModelPath)
                 {
                     if (_customChatClient != null)
                     {
@@ -200,40 +213,54 @@ public class ModelManager : IModelManager, IAsyncDisposable
                 }
 
                 UpdateLastUsed();
-                bool needsReload = _chatModel == null;
-                if (_chatModel != null && _loadedChatAlias != targetChatAlias)
+
+                if (isNoneChat)
                 {
-                    bool isRecentFailure = IsRecentFailure(targetChatAlias);
-                    if (_loadedChatAlias == ModelCatalog.DefaultChatAlias && isRecentFailure)
+                    if (_chatModel != null)
                     {
-                        _fileLogger.Log($"Keeping fallback chat model '{_loadedChatAlias}' (configured '{targetChatAlias}' failed recently).");
-                    }
-                    else
-                    {
-                        _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{targetChatAlias}'. Unloading old model.");
                         await _chatModel.UnloadAsync();
                         _chatModel = null;
                         _chatLoaded = false;
                         _loadedChatAlias = null;
-                        needsReload = true;
                     }
                 }
-
-                if (needsReload)
+                else
                 {
-                    var loadedAlias = targetChatAlias;
-                    _chatModel = await TryLoadModelAsync(catalog, targetChatAlias);
-                    if (_chatModel == null)
+                    bool needsReload = _chatModel == null;
+                    if (_chatModel != null && _loadedChatAlias != targetChatAlias)
                     {
-                        _lastFailureByAlias[targetChatAlias] = DateTime.Now;
-                        _fileLogger.Log($"Configured chat model '{targetChatAlias}' unavailable. Falling back to default '{ModelCatalog.DefaultChatAlias}'.");
-                        loadedAlias = ModelCatalog.DefaultChatAlias;
-                        _chatModel = await TryLoadModelAsync(catalog, loadedAlias);
-                        if (_chatModel == null)
-                            throw new InvalidOperationException($"Could not load chat model '{targetChatAlias}' or default '{ModelCatalog.DefaultChatAlias}'.");
+                        bool isRecentFailure = IsRecentFailure(targetChatAlias);
+                        if (_loadedChatAlias == ModelCatalog.DefaultChatAlias && isRecentFailure)
+                        {
+                            _fileLogger.Log($"Keeping fallback chat model '{_loadedChatAlias}' (configured '{targetChatAlias}' failed recently).");
+                        }
+                        else
+                        {
+                            _fileLogger.Log($"Chat model changed from '{_loadedChatAlias}' to '{targetChatAlias}'. Unloading old model.");
+                            await _chatModel.UnloadAsync();
+                            _chatModel = null;
+                            _chatLoaded = false;
+                            _loadedChatAlias = null;
+                            needsReload = true;
+                        }
                     }
-                    _loadedChatAlias = loadedAlias;
-                    _chatLoaded = true;
+
+                    if (needsReload)
+                    {
+                        var loadedAlias = targetChatAlias;
+                        _chatModel = await TryLoadModelAsync(catalog, targetChatAlias);
+                        if (_chatModel == null)
+                        {
+                            _lastFailureByAlias[targetChatAlias] = DateTime.Now;
+                            _fileLogger.Log($"Configured chat model '{targetChatAlias}' unavailable. Falling back to default '{ModelCatalog.DefaultChatAlias}'.");
+                            loadedAlias = ModelCatalog.DefaultChatAlias;
+                            _chatModel = await TryLoadModelAsync(catalog, loadedAlias);
+                            if (_chatModel == null)
+                                throw new InvalidOperationException($"Could not load chat model '{targetChatAlias}' or default '{ModelCatalog.DefaultChatAlias}'.");
+                        }
+                        _loadedChatAlias = loadedAlias;
+                        _chatLoaded = true;
+                    }
                 }
 
                 UpdateLastUsed();

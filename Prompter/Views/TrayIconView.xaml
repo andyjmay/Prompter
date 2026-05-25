@@ -20,7 +20,7 @@
                 <ContextMenu>
                     <MenuItem Header="Mode" ItemsSource="{Binding ModeMenuItems}">
                         <MenuItem.ItemContainerStyle>
-                            <Style TargetType="MenuItem">
+                            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
                                 <Setter Property="Header" Value="{Binding Name}"/>
                                 <Setter Property="IsChecked" Value="{Binding IsSelected, Mode=OneWay}"/>
                                 <Setter Property="IsCheckable" Value="True"/>

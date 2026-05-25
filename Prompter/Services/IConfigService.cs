@@ -8,4 +8,5 @@ public interface IConfigService
     Task SaveAsync(AppConfig config);
     bool IsFirstRun();
     event EventHandler<AppConfig>? ConfigChanged;
+    IDisposable PushTemporaryConfig(AppConfig config);
 }
