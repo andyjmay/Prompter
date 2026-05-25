@@ -126,13 +126,14 @@ public class Program
         {
             return new List<EvalConfig>
             {
-                new EvalConfig("whisper-tiny", "phi-3.5-mini", "standard")
+                new EvalConfig("whisper-tiny", "phi-3.5-mini", "standard"),
+                new EvalConfig("whisper-tiny", "phi-3.5-mini", "code")
             };
         }
 
         var whisperModels = new[] { "whisper-tiny", "whisper-tiny-en", "whisper-base" };
         var chatModels = new[] { "phi-3.5-mini", "gemma-3-270m-it" };
-        var modes = new[] { "standard", "formal", "raw" };
+        var modes = new[] { "standard", "formal", "raw", "code" };
 
         var configs = new List<EvalConfig>();
 

@@ -45,7 +45,7 @@ public record PreviewToastSpecificConfig
 
 public record AppConfig
 {
-    public int Version { get; init; } = 10;
+    public int Version { get; init; } = 11;
     public string HotkeyModifiers { get; init; } = "Win+Ctrl";
     public string HotkeyKey { get; init; } = "";
     public string DefaultModeId { get; init; } = ModeDefaults.StandardId;

@@ -149,6 +149,32 @@ public static class DatasetLoader
                     ["standard"] = "Good morning team. I wanted to follow up on our discussion from yesterday. We agreed that the marketing team would handle the social media campaign while engineering focuses on the release. Please let me know if anything has changed. Looking forward to our next meeting.",
                     ["formal"] = "Good morning team. I wanted to follow up on our discussion from yesterday. We agreed that the marketing team would handle the social media campaign while engineering focuses on the release. Please inform me if anything has changed. I look forward to our next meeting."
                 }
+            ),
+            new(
+                "code-import-file-path",
+                "import { userController } from './utils'",
+                new[] { "code", "file-path" },
+                "import open brace user controller close brace from quote dot slash utils quote",
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["raw"] = "import open brace user controller close brace from quote dot slash utils quote",
+                    ["standard"] = "Import open brace user controller close brace from quote dot slash utils quote.",
+                    ["formal"] = "Import open brace user controller close brace from quote dot slash utils quote.",
+                    ["code"] = "import { userController } from './utils'"
+                }
+            ),
+            new(
+                "code-cli-command",
+                "git commit -m \"fix null pointer\"",
+                new[] { "code", "cli" },
+                "git commit dash m fix null pointer",
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["raw"] = "git commit dash m fix null pointer",
+                    ["standard"] = "Git commit dash m fix null pointer.",
+                    ["formal"] = "Git commit dash m fix null pointer.",
+                    ["code"] = "git commit -m \"fix null pointer\""
+                }
             )
         };
 

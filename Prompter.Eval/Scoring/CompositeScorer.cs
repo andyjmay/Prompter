@@ -1,4 +1,5 @@
 using Prompter.Eval.Dataset;
+using Prompter.Models;
 
 namespace Prompter.Eval.Scoring;
 
@@ -10,7 +11,14 @@ public class CompositeScorer : IScorer
 
         if (!testCase.ExpectedOutputByModeId.TryGetValue(modeId, out var expectedOutput))
         {
-            expectedOutput = testCase.ExpectedRawText;
+            if (modeId.Equals(ModeDefaults.CodeId, StringComparison.OrdinalIgnoreCase) && testCase.ExpectedOutputByModeId.TryGetValue(ModeDefaults.StandardId, out var standardOutput))
+            {
+                expectedOutput = standardOutput;
+            }
+            else
+            {
+                expectedOutput = testCase.ExpectedRawText;
+            }
         }
 
         double formattingScore = FormattingScorer.Score(formattedText ?? finalText, expectedOutput);

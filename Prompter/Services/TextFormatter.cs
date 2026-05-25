@@ -117,6 +117,11 @@ public class TextFormatter : ITextFormatter
             result = FormatListSpacing(result);
         }
 
+        if (modeId.Equals(ModeDefaults.CodeId, StringComparison.OrdinalIgnoreCase))
+        {
+            result = ApplyCodeModeSafeguards(result);
+        }
+
         _fileLogger.Log($"Chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' cleaned text: {result}");
         return result;
     }
@@ -185,7 +190,8 @@ public class TextFormatter : ITextFormatter
         if (denominator > 0)
         {
             var preservationRatio = (double)overlap / denominator;
-            if (preservationRatio < 0.4)
+            var minRatio = modeId?.Equals(ModeDefaults.CodeId, StringComparison.OrdinalIgnoreCase) == true ? 0.15 : 0.4;
+            if (preservationRatio < minRatio)
                 return rawText;
         }
 
@@ -547,5 +553,38 @@ public class TextFormatter : ITextFormatter
 
         var match = Regex.Match(trimmedLine, @"^[1-9]\d{0,2}[\.\)]\s");
         return match.Success;
+    }
+
+    internal static string ApplyCodeModeSafeguards(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+
+        // 1. Restore CLI flags: convert "dash [letter or number]" to "-[letter or number]"
+        // Also convert double dash: "dash dash [word]" or "double dash [word]" to "--[word]"
+        text = Regex.Replace(text, @"\bdash\s+([a-zA-Z0-9])\b", "-$1", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"\b(?:dash\s+dash|double\s+dash)\s+([a-zA-Z0-9]+)\b", "--$1", RegexOptions.IgnoreCase);
+
+        // 2. Restore verbalized dots between alphanumeric characters / underscores
+        text = Regex.Replace(text, @"(?<=[a-zA-Z0-9_-])\s*\bdot\b\s*(?=[a-zA-Z0-9_-])", ".");
+
+        // 3. Collapse spaces around dots in potential file paths ending in protected extensions
+        var extensions = "ts|js|tsx|jsx|py|cs|json|html|css|yml|yaml|md|sh|bat|rs|go|cpp|h|java|kt|sql|ini|conf|toml";
+        var extPattern = $@"\b([a-zA-Z0-9_-]+(?:\s*\.\s*[a-zA-Z0-9_-]+)*)\s*\.\s*({extensions})\b";
+        text = Regex.Replace(text, extPattern, m => Regex.Replace(m.Value, @"\s+", ""), RegexOptions.IgnoreCase);
+
+        // 4. Collapse spaces in multi-character operators
+        text = Regex.Replace(text, @"=\s+=\s+=", "===");
+        text = Regex.Replace(text, @"=\s+=", "==");
+        text = Regex.Replace(text, @"!\s+=\s+=", "!==");
+        text = Regex.Replace(text, @"!\s+=", "!=");
+        text = Regex.Replace(text, @"=\s+>", "=>");
+        text = Regex.Replace(text, @"&\s+&", "&&");
+        text = Regex.Replace(text, @"\|\s+\|", "||");
+        text = Regex.Replace(text, @"<\s+=", "<=");
+        text = Regex.Replace(text, @">\s+=", ">=");
+        text = Regex.Replace(text, @"\+\s+=", "+=");
+        text = Regex.Replace(text, @"-\s+=", "-=");
+
+        return text;
     }
 }

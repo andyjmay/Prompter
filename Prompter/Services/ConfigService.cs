@@ -239,6 +239,16 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 11)
+        {
+            var modes = ModeDefaults.EnsureBuiltInsPresent(migrated.Modes.ToList());
+            migrated = migrated with
+            {
+                Version = 11,
+                Modes = modes
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),

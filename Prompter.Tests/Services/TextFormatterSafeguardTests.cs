@@ -1,3 +1,4 @@
+using Prompter.Models;
 using Prompter.Services;
 using Xunit;
 
@@ -338,6 +339,82 @@ public class TextFormatterSafeguardTests
         var input = "- Item 1\n    - Subitem 1";
         var formatted = TextFormatter.FormatListSpacing(input);
         Assert.Equal(input, formatted);
+    }
+
+    #endregion
+
+    #region RejectIfHallucinated_CodeMode
+
+    [Fact]
+    public void RejectIfHallucinated_CodeMode_LowOverlap_AllowsResult()
+    {
+        var raw = "create function named user controller";
+        var result = "function userController()";
+        var accepted = TextFormatter.RejectIfHallucinated(raw, result, ModeDefaults.CodeId);
+        Assert.Equal(result, accepted);
+    }
+
+    [Fact]
+    public void RejectIfHallucinated_CodeMode_ZeroOverlap_ReturnsRaw()
+    {
+        var raw = "function user controller open paren close paren";
+        var result = "completely unrelated text";
+        var rejected = TextFormatter.RejectIfHallucinated(raw, result, ModeDefaults.CodeId);
+        Assert.Equal(raw, rejected);
+    }
+
+    [Fact]
+    public void RejectIfHallucinated_CodeMode_DoubleLength_ReturnsRaw()
+    {
+        var raw = "git push";
+        var result = "git push origin main with force and tags and verbose output";
+        var rejected = TextFormatter.RejectIfHallucinated(raw, result, ModeDefaults.CodeId);
+        Assert.Equal(raw, rejected);
+    }
+
+    #endregion
+
+    #region CodeModeTests
+
+    [Theory]
+    [InlineData("git commit dash m fix", "git commit -m fix")]
+    [InlineData("git commit dash 1 fix", "git commit -1 fix")]
+    [InlineData("git push dash dash force", "git push --force")]
+    [InlineData("docker compose up double dash force", "docker compose up --force")]
+    public void ApplyCodeModeSafeguards_RestoresCLIFlags(string input, string expected)
+    {
+        var result = TextFormatter.ApplyCodeModeSafeguards(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("user dot controller dot ts", "user.controller.ts")]
+    [InlineData("user . controller . ts", "user.controller.ts")]
+    [InlineData("main dot py", "main.py")]
+    [InlineData("app dot js", "app.js")]
+    [InlineData("config dot toml", "config.toml")]
+    public void ApplyCodeModeSafeguards_RestoresDotsInFilePaths(string input, string expected)
+    {
+        var result = TextFormatter.ApplyCodeModeSafeguards(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("a = > b", "a => b")]
+    [InlineData("x = = = y", "x === y")]
+    [InlineData("x = =", "x ==")]
+    [InlineData("c ! = d", "c != d")]
+    [InlineData("c ! = = d", "c !== d")]
+    [InlineData("a & & b", "a && b")]
+    [InlineData("a | | b", "a || b")]
+    [InlineData("i + = 1", "i += 1")]
+    [InlineData("i - = 1", "i -= 1")]
+    [InlineData("x < = y", "x <= y")]
+    [InlineData("x > = y", "x >= y")]
+    public void ApplyCodeModeSafeguards_CollapsesOperators(string input, string expected)
+    {
+        var result = TextFormatter.ApplyCodeModeSafeguards(input);
+        Assert.Equal(expected, result);
     }
 
     #endregion

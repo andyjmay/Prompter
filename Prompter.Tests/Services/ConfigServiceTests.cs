@@ -35,7 +35,7 @@ public class ConfigServiceTests : IDisposable
     {
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.Equal(ModeDefaults.StandardId, config.DefaultModeId);
         Assert.NotEmpty(config.Modes);
         Assert.True(config.UseClipboardPaste);
@@ -61,7 +61,7 @@ public class ConfigServiceTests : IDisposable
     {
         var config = new AppConfig
         {
-            Version = 10,
+            Version = 11,
             HotkeyKey = "F10",
             SpokenPunctuationEnabled = true,
             DictionaryEntries = new() { new DictionaryEntry { Word = "Foo", Aliases = new() { "foo" } } }
@@ -89,7 +89,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         // CustomSystemPrompt triggers creation of a custom mode which becomes the default
         Assert.Equal("custom", config.DefaultModeId);
         var customMode = config.Modes.FirstOrDefault(m => m.Id == "custom");
@@ -111,7 +111,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.False(config.UseCustomWhisper);
         Assert.Equal("", config.CustomWhisperModelPath);
         // v4 migration reads the legacy numeric DefaultMode property
@@ -132,7 +132,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.False(config.SpokenPunctuationEnabled);
     }
 
@@ -149,7 +149,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.True(config.SpokenPunctuationEnabled);
         Assert.NotNull(config.DictionaryEntries);
     }
@@ -167,7 +167,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.NotNull(config.Snippets);
         Assert.Single(config.DictionaryEntries);
     }
@@ -222,7 +222,7 @@ public class ConfigServiceTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_tempDir, "config.json"), "{ not valid json");
         var config = _service.Load();
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public class ConfigServiceTests : IDisposable
 
         var config = _service.Load();
 
-        Assert.Equal(10, config.Version);
+        Assert.Equal(11, config.Version);
         Assert.Equal(ModeDefaults.StandardId, config.DefaultModeId);
         Assert.DoesNotContain(config.Modes, m => m.Id == "clean");
     }
@@ -278,5 +278,25 @@ public class ConfigServiceTests : IDisposable
         Assert.NotNull(config.OverlayStyle);
         Assert.NotNull(config.DictionaryEntries);
         Assert.NotNull(config.Snippets);
+    }
+
+    [Fact]
+    public void Load_V10Config_MigratesToV11AndAddsCodeMode()
+    {
+        var v10Json = """
+        {
+            "Version": 10,
+            "DefaultModeId": "standard",
+            "Modes": [
+                {"Id":"standard","Name":"Standard","SystemPrompt":"test"}
+            ]
+        }
+        """;
+        File.WriteAllText(Path.Combine(_tempDir, "config.json"), v10Json);
+
+        var config = _service.Load();
+
+        Assert.Equal(11, config.Version);
+        Assert.Contains(config.Modes, m => m.Id == "code");
     }
 }
