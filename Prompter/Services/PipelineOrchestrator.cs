@@ -14,6 +14,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     private readonly IClipboardService _clipboard;
     private readonly IInputInjectorService _injector;
     private readonly IConfigService _configService;
+    private readonly ISnippetMatcher _snippetMatcher;
     private readonly IAudioFeedbackService _audioFeedback;
     private readonly IFileLogger _logger;
     private readonly Dispatcher _dispatcher;
@@ -37,6 +38,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         IClipboardService clipboard,
         IInputInjectorService injector,
         IConfigService configService,
+        ISnippetMatcher snippetMatcher,
         IAudioFeedbackService audioFeedback,
         IFileLogger logger,
         Dispatcher dispatcher,
@@ -49,6 +51,7 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _clipboard = clipboard;
         _injector = injector;
         _configService = configService;
+        _snippetMatcher = snippetMatcher;
         _audioFeedback = audioFeedback;
         _logger = logger;
         _dispatcher = dispatcher;
@@ -236,7 +239,21 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _uiManager.HideRecordingOverlay();
             return;
         }
+
+        var matchedSnippet = _snippetMatcher.Match(rawText, cfg.Snippets);
+        if (matchedSnippet != null)
+        {
+            _logger.Log($"Snippet matched: '{matchedSnippet.Trigger}' — injecting expansion.");
+            ShowBalloon?.Invoke("Prompter — Snippet inserted", $"Matched '{matchedSnippet.Trigger}'.");
+            await InjectAsync(matchedSnippet.Expansion, generation, cfg);
+            return;
+        }
+
         var trueRawText = rawText;
+        if (cfg.DictionaryEntries.Count > 0)
+        {
+            rawText = PersonalDictionaryProcessor.Process(rawText, cfg.DictionaryEntries, _logger);
+        }
         if (cfg.SpokenPunctuationEnabled)
         {
             rawText = SpokenPunctuationProcessor.Process(rawText, cfg.Language, _logger);
@@ -307,22 +324,27 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 "The formatting model was unavailable. Outputting raw transcription.");
         }
 
+        await InjectAsync(finalText, generation, cfg);
+    }
+
+    private async Task InjectAsync(string text, int generation, AppConfig cfg)
+    {
         _uiManager.UpdateProcessingStage("Typing…");
 
         var snapshot = _dispatcher.Invoke(() => _clipboard.SaveClipboard());
 
         try
         {
-            if (cfg.UseClipboardPaste && finalText.Length >= cfg.PasteThresholdCharacters)
+            if (cfg.UseClipboardPaste && text.Length >= cfg.PasteThresholdCharacters)
             {
-                _dispatcher.Invoke(() => _clipboard.CopyText(finalText));
+                _dispatcher.Invoke(() => _clipboard.CopyText(text));
                 _injector.SimulatePaste();
                 await Task.Delay(150);
                 _logger.Log("Text pasted via clipboard.");
             }
             else
             {
-                _injector.TypeText(finalText);
+                _injector.TypeText(text);
                 _logger.Log("Text injected.");
             }
         }
@@ -340,10 +362,10 @@ public class PipelineOrchestrator : IPipelineOrchestrator
             _uiManager.HideRecordingOverlay();
             if (cfg.NotifyOnOutputReady)
             {
-                _uiManager.ShowPreviewToast(finalText);
+                _uiManager.ShowPreviewToast(text);
             }
         }
-        OutputReady?.Invoke(finalText);
+        OutputReady?.Invoke(text);
     }
 
     public void Dispose()

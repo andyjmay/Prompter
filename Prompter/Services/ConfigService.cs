@@ -159,11 +159,31 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 6)
+        {
+            migrated = migrated with
+            {
+                Version = 6,
+                DictionaryEntries = new()
+            };
+        }
+
+        if (rawVersion < 7)
+        {
+            migrated = migrated with
+            {
+                Version = 7,
+                Snippets = new()
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),
             PreviewToast = migrated.PreviewToast ?? new(),
-            OverlayStyle = migrated.OverlayStyle ?? new()
+            OverlayStyle = migrated.OverlayStyle ?? new(),
+            DictionaryEntries = migrated.DictionaryEntries ?? new(),
+            Snippets = migrated.Snippets ?? new()
         };
     }
 }

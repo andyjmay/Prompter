@@ -195,6 +195,7 @@ public partial class App : Application
         services.AddSingleton<IFirstRunService, FirstRunService>();
 
         // Foundry layer
+        services.AddSingleton<ISnippetMatcher, SnippetMatcher>();
         services.AddSingleton<IFoundryLocalManagerAccessor, FoundryLocalManagerAccessor>();
         services.AddSingleton<FoundryTranscriptionProvider>();
         services.AddSingleton<WhisperNetTranscriptionProvider>();

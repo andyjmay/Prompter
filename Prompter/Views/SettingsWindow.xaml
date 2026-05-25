@@ -547,7 +547,101 @@
                 </Grid>
             </TabItem>
 
-            <!-- TAB 3: AI Models & Paste Settings -->
+            <!-- TAB 3: Dictionary -->
+            <TabItem Header="Dictionary">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Personal Dictionary" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="0" Text="Add words and phrases that Whisper often mishears. Aliases are alternate spellings or pronunciations that should be corrected to the canonical word." FontSize="11" Foreground="#FF888888" Margin="0,22,0,8" TextWrapping="Wrap"/>
+
+                    <ListView x:Name="DictionaryListView" Grid.Row="1" Margin="0,0,0,12">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Word" Width="180">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Word}" FontWeight="SemiBold" Foreground="White"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Aliases" Width="320">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding AliasesDisplay}" TextTrimming="CharacterEllipsis" Foreground="#FFCCCCCC"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="AddDictionaryEntryButton" Content="+ Add Entry" Grid.Column="0" HorizontalAlignment="Left" Click="AddDictionaryEntryButton_Click"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="EditDictionaryEntryButton" Content="Edit" Margin="0,0,8,0" Click="EditDictionaryEntryButton_Click"/>
+                            <Button x:Name="DeleteDictionaryEntryButton" Content="Delete" Click="DeleteDictionaryEntryButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 4: Snippets -->
+            <TabItem Header="Snippets">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Text Snippets" FontWeight="Bold" Foreground="White" FontSize="14" Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="0" Text="Voice-activated macros that insert pre-written text. Speak the trigger phrase and the expansion is typed directly." FontSize="11" Foreground="#FF888888" Margin="0,22,0,8" TextWrapping="Wrap"/>
+
+                    <ListView x:Name="SnippetsListView" Grid.Row="1" Margin="0,0,0,12">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Trigger" Width="180">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Trigger}" FontWeight="SemiBold" Foreground="White"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Expansion" Width="320">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding ExpansionPreview}" TextTrimming="CharacterEllipsis" Foreground="#FFCCCCCC"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="AddSnippetButton" Content="+ Add Snippet" Grid.Column="0" HorizontalAlignment="Left" Click="AddSnippetButton_Click"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="EditSnippetButton" Content="Edit" Margin="0,0,8,0" Click="EditSnippetButton_Click"/>
+                            <Button x:Name="DeleteSnippetButton" Content="Delete" Click="DeleteSnippetButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 5: AI Models & Paste Settings -->
             <TabItem Header="Models &amp; Clipboard">
                 <Grid Margin="0,8,0,0">
                     <Grid.RowDefinitions>
@@ -670,7 +764,7 @@
                 </Grid>
             </TabItem>
 
-            <!-- TAB 3: Appearance & Overlays -->
+            <!-- TAB 6: Appearance & Overlays -->
             <TabItem Header="Appearance">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,12,0">
@@ -794,7 +888,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- TAB 4: Logs -->
+            <!-- TAB 7: Logs -->
             <TabItem Header="Logs">
                 <Grid Margin="0,8,0,0">
                     <Grid.RowDefinitions>

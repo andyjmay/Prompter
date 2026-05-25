@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
+using DictionaryEntry = Prompter.Models.DictionaryEntry;
 using Prompter.Models;
 using Prompter.Services;
 
@@ -79,6 +80,8 @@ public partial class SettingsWindow : Window
         TtlSlider.ValueChanged += (_, e) => TtlValue.Text = e.NewValue.ToString("F0");
 
         RefreshModesList();
+        RefreshDictionaryList();
+        RefreshSnippetsList();
 
         _ = PopulateChatModelComboBoxAsync();
         _ = PopulateWhisperModelComboBoxAsync();
@@ -323,6 +326,208 @@ public partial class SettingsWindow : Window
         }
         _config = _config with { Modes = updated, DefaultModeId = newDefaultId };
         RefreshModesList();
+    }
+
+    private void RefreshDictionaryList()
+    {
+        var selectedIndex = DictionaryListView.SelectedIndex;
+        var selectedWord = (DictionaryListView.SelectedItem as DictionaryListItem)?.Word;
+
+        var items = _config.DictionaryEntries.Select(e => new DictionaryListItem
+        {
+            Word = e.Word,
+            AliasesDisplay = string.Join(", ", e.Aliases ?? new List<string>()),
+            Entry = e
+        }).ToList();
+
+        DictionaryListView.ItemsSource = items;
+
+        if (selectedIndex >= 0 && selectedIndex < items.Count)
+        {
+            var toSelect = items[selectedIndex];
+            DictionaryListView.SelectedItem = toSelect;
+            DictionaryListView.ScrollIntoView(toSelect);
+        }
+        else if (selectedWord != null)
+        {
+            var toSelect = items.FirstOrDefault(i => i.Word.Equals(selectedWord, StringComparison.OrdinalIgnoreCase));
+            if (toSelect != null)
+            {
+                DictionaryListView.SelectedItem = toSelect;
+                DictionaryListView.ScrollIntoView(toSelect);
+            }
+        }
+    }
+
+    private void AddDictionaryEntryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new DictionaryEntryDialog();
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            if (_config.DictionaryEntries.Any(d => d.Word.Equals(dialog.Result.Word, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show(
+                    $"A dictionary entry for the word '{dialog.Result.Word}' already exists. Please edit the existing entry instead.",
+                    "Duplicate Entry",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+            _config = _config with
+            {
+                DictionaryEntries = new List<DictionaryEntry>(_config.DictionaryEntries) { dialog.Result }
+            };
+            RefreshDictionaryList();
+        }
+    }
+
+    private void EditDictionaryEntryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = DictionaryListView.SelectedItem as DictionaryListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select an entry from the list first.", "Edit Entry", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new DictionaryEntryDialog(selected.Entry);
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            var duplicate = _config.DictionaryEntries.FirstOrDefault(
+                d => d.Word.Equals(dialog.Result.Word, StringComparison.OrdinalIgnoreCase) &&
+                     !ReferenceEquals(d, selected.Entry));
+            if (duplicate != null)
+            {
+                MessageBox.Show(
+                    $"Another dictionary entry for the word '{dialog.Result.Word}' already exists. Please choose a different word.",
+                    "Duplicate Entry",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+            var updated = new List<DictionaryEntry>(_config.DictionaryEntries);
+            var idx = updated.FindIndex(d => ReferenceEquals(d, selected.Entry));
+            if (idx >= 0)
+            {
+                updated[idx] = dialog.Result;
+                _config = _config with { DictionaryEntries = updated };
+                RefreshDictionaryList();
+            }
+        }
+    }
+
+    private void DeleteDictionaryEntryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = DictionaryListView.SelectedItem as DictionaryListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select an entry from the list first.", "Delete Entry", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Delete the dictionary entry '{selected.Word}'? This cannot be undone.",
+            "Confirm Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        var updated = _config.DictionaryEntries
+            .Where(d => !ReferenceEquals(d, selected.Entry))
+            .ToList();
+
+        _config = _config with { DictionaryEntries = updated };
+        RefreshDictionaryList();
+    }
+
+    private void RefreshSnippetsList()
+    {
+        var selectedTrigger = (SnippetsListView.SelectedItem as SnippetListItem)?.Trigger;
+
+        var items = _config.Snippets.Select(s => new SnippetListItem
+        {
+            Trigger = s.Trigger,
+            ExpansionPreview = s.Expansion.Length > 80 ? s.Expansion[..80] + "…" : s.Expansion,
+            Entry = s
+        }).ToList();
+
+        SnippetsListView.ItemsSource = items;
+
+        if (selectedTrigger != null)
+        {
+            var toSelect = items.FirstOrDefault(i => i.Trigger.Equals(selectedTrigger, StringComparison.OrdinalIgnoreCase));
+            if (toSelect != null)
+            {
+                SnippetsListView.SelectedItem = toSelect;
+                SnippetsListView.ScrollIntoView(toSelect);
+            }
+        }
+    }
+
+    private void AddSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SnippetDialog(_config.Snippets.ToList());
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            _config = _config with
+            {
+                Snippets = new List<Snippet>(_config.Snippets) { dialog.Result }
+            };
+            RefreshSnippetsList();
+        }
+    }
+
+    private void EditSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = SnippetsListView.SelectedItem as SnippetListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a snippet from the list first.", "Edit Snippet", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SnippetDialog(_config.Snippets.ToList(), selected.Entry);
+        dialog.Owner = this;
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            var updated = new List<Snippet>(_config.Snippets);
+            var idx = updated.FindIndex(s => ReferenceEquals(s, selected.Entry));
+            if (idx >= 0)
+            {
+                updated[idx] = dialog.Result;
+                _config = _config with { Snippets = updated };
+                RefreshSnippetsList();
+            }
+        }
+    }
+
+    private void DeleteSnippetButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = SnippetsListView.SelectedItem as SnippetListItem;
+        if (selected == null)
+        {
+            MessageBox.Show("Please select a snippet from the list first.", "Delete Snippet", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"Delete the snippet '{selected.Trigger}'? This cannot be undone.",
+            "Confirm Delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        var updated = _config.Snippets
+            .Where(s => !ReferenceEquals(s, selected.Entry))
+            .ToList();
+
+        _config = _config with { Snippets = updated };
+        RefreshSnippetsList();
     }
 
     private async Task PopulateChatModelComboBoxAsync()
@@ -1337,6 +1542,20 @@ public class ModeListItem
     public bool ShowDiagnosticOutput { get; set; }
     public bool IsDefault { get; set; }
     public bool IsBuiltIn { get; set; }
+}
+
+public class DictionaryListItem
+{
+    public string Word { get; set; } = "";
+    public string AliasesDisplay { get; set; } = "";
+    public DictionaryEntry Entry { get; set; } = new();
+}
+
+public class SnippetListItem
+{
+    public string Trigger { get; set; } = "";
+    public string ExpansionPreview { get; set; } = "";
+    public Snippet Entry { get; set; } = new();
 }
 
 public class BoolToTextConverter : System.Windows.Data.IValueConverter

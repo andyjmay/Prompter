@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Prompter.Models;
 
 namespace Prompter.Services;
@@ -27,6 +28,30 @@ public class TextFormatter : ITextFormatter
             _fileLogger.Log($"WARNING: Mode '{modeId}' not found in config. Using standard system prompt.");
         }
         var systemPrompt = mode?.SystemPrompt ?? ModeDefaults.Standard.SystemPrompt;
+
+        var matchedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var validWords = cfg.DictionaryEntries
+            .Select(e => e.Word)
+            .Where(w => !string.IsNullOrWhiteSpace(w))
+            .ToList();
+        if (validWords.Count > 0)
+        {
+            var canonicalLookup = validWords.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(w => w, w => w, StringComparer.OrdinalIgnoreCase);
+            var escaped = string.Join("|", validWords.Select(w => Regex.Escape(w)));
+            var pattern = $@"(?<![\w'-])({escaped})(?![\w'-])";
+            foreach (Match m in Regex.Matches(rawText, pattern, RegexOptions.IgnoreCase))
+            {
+                if (canonicalLookup.TryGetValue(m.Groups[1].Value, out var canonical))
+                {
+                    matchedWords.Add(canonical);
+                }
+            }
+        }
+
+        if (matchedWords.Count > 0)
+        {
+            systemPrompt += $"\n\nPreserve the exact spelling of the following words: {string.Join(", ", matchedWords)}.";
+        }
 
         var chatClient = await _modelManager.GetChatClientAsync();
 
