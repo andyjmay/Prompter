@@ -105,6 +105,7 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
             _config = cfg;
             RefreshModeMenuItems();
             OnPropertyChanged(nameof(CleanEnabled));
+            OnPropertyChanged(nameof(ListFormattingEnabled));
         };
         _configService.ConfigChanged += _onConfigChanged;
     }
@@ -211,6 +212,20 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
             {
                 _config = _config with { CleanEnabled = value };
                 OnPropertyChanged(nameof(CleanEnabled));
+                _ = _configService.SaveAsync(_config);
+            }
+        }
+    }
+
+    public bool ListFormattingEnabled
+    {
+        get => _config.ListFormattingEnabled;
+        set
+        {
+            if (_config.ListFormattingEnabled != value)
+            {
+                _config = _config with { ListFormattingEnabled = value };
+                OnPropertyChanged(nameof(ListFormattingEnabled));
                 _ = _configService.SaveAsync(_config);
             }
         }

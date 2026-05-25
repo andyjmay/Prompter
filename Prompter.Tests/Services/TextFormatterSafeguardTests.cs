@@ -292,4 +292,53 @@ public class TextFormatterSafeguardTests
     }
 
     #endregion
+
+    #region ListFormattingModeTests
+
+    [Fact]
+    public void RejectIfHallucinated_ListFormattingEnabled_AllowsMarkdownLists()
+    {
+        var raw = "Buy milk and eggs";
+        var result = "1. Buy milk\n2. Buy eggs";
+        var accepted = TextFormatter.RejectIfHallucinated(raw, result, listFormattingEnabled: true);
+        Assert.Equal(result, accepted);
+    }
+
+    [Fact]
+    public void ApplyListFormattingSafetyNet_SequentialNumericMarkers_InsertsNewlines()
+    {
+        var raw = "Grocery list 1. Milk 2. Eggs 3. Bread";
+        var result = "Grocery list 1. Milk 2. Eggs 3. Bread";
+        var expected = "Grocery list\n\n1. Milk\n2. Eggs\n3. Bread";
+        var safetyNetted = TextFormatter.ApplyListFormattingSafetyNet(raw, result);
+        Assert.Equal(expected, safetyNetted);
+    }
+
+    [Fact]
+    public void ApplyListFormattingSafetyNet_NoSequentialMarkers_DoesNotInsertNewlines()
+    {
+        var raw = "Grocery list 1. Milk and eggs";
+        var result = "Grocery list 1. Milk and eggs";
+        var safetyNetted = TextFormatter.ApplyListFormattingSafetyNet(raw, result);
+        Assert.Equal(result, safetyNetted);
+    }
+
+    [Fact]
+    public void FormatListSpacing_NormalizesListSpacing()
+    {
+        var input = "Grocery list:\n1. Milk\n\n2. Eggs\nDone.";
+        var expected = "Grocery list:\n\n1. Milk\n2. Eggs\n\nDone.";
+        var formatted = TextFormatter.FormatListSpacing(input);
+        Assert.Equal(expected, formatted);
+    }
+
+    [Fact]
+    public void FormatListSpacing_PreservesNestedIndentation()
+    {
+        var input = "- Item 1\n    - Subitem 1";
+        var formatted = TextFormatter.FormatListSpacing(input);
+        Assert.Equal(input, formatted);
+    }
+
+    #endregion
 }

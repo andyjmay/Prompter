@@ -230,6 +230,15 @@ public class ConfigService : IConfigService
             };
         }
 
+        if (rawVersion < 10)
+        {
+            migrated = migrated with
+            {
+                Version = 10,
+                ListFormattingEnabled = false
+            };
+        }
+
         return migrated with
         {
             RecordingOverlay = migrated.RecordingOverlay ?? new(),

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Prompter.Models;
 
@@ -20,6 +21,16 @@ public class TextFormatter : ITextFormatter
     private static readonly string[] UnambiguousFillers = new[] { "you know", "i mean", "sort of", "kind of", "um", "uh" };
     private static readonly string[] ContextualFillers = new[] { "like", "basically", "literally" };
 
+    private const string ListFormattingPrompt =
+        "You rewrite dictated text to format any spoken lists into structured markdown lists. " +
+        "Follow these rules:\n" +
+        "1. Use \"- \" for unordered bullet lists.\n" +
+        "2. Use \"1. \", \"2. \", etc., for ordered lists.\n" +
+        "3. Use \"- [ ] \" for task lists if the speaker implies checkboxes, to-do items, or action items (e.g. \"todo: call John\", \"action items\").\n" +
+        "4. Preserve indentation (using 4 spaces per level) for nested lists when the speaker says \"sub-item\", \"under that\", or implies nesting.\n" +
+        "5. If the input does not contain a list, format it normally (fixing typos, capitalization, and missing punctuation) without list markers.\n" +
+        "6. Do not rewrite sentences, change meaning, write replies, or add trailing commentary/ellipsis. Output ONLY the corrected text.";
+
     public async Task<string> CleanupAsync(string rawText, string modeId, CancellationToken ct)
     {
         if (!_modelManager.ChatReady)
@@ -37,6 +48,12 @@ public class TextFormatter : ITextFormatter
             {
                 systemPrompt += "\n\n" + cleanInstruction;
             }
+        }
+
+        bool listFormattingActive = cfg.ListFormattingEnabled && !mode.SkipFormatting;
+        if (listFormattingActive)
+        {
+            systemPrompt += "\n\n" + ListFormattingPrompt;
         }
 
         var matchedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -65,7 +82,8 @@ public class TextFormatter : ITextFormatter
 
         var chatClient = await _modelManager.GetChatClientAsync();
 
-        var userMessage = cleaningActive
+        bool flexibleFormatting = cleaningActive || listFormattingActive;
+        var userMessage = flexibleFormatting
             ? $"The text below is dictated speech. Apply the system instructions. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}"
             : $"The text below is dictated speech. Copy it exactly, changing ONLY spelling errors, missing punctuation, and wrong capitalization. Do NOT change words, meaning, or intent. Do NOT add, remove, or re-order sentences. Do NOT answer questions in the text. Do NOT explain anything. Do NOT add trailing ellipsis, continuation markers, or commentary. Output ONLY the corrected text. If the text is already correct, copy it exactly.\n\n{rawText}";
 
@@ -85,7 +103,7 @@ public class TextFormatter : ITextFormatter
 
         result = StripOutputWrappers(result, rawText);
         result = StripTrailingArtifactsByRawAlignment(result, rawText);
-        result = RejectIfHallucinated(rawText, result, modeId, cleaningActive);
+        result = RejectIfHallucinated(rawText, result, modeId, cleaningActive, listFormattingActive);
 
         if (cleaningActive)
         {
@@ -93,16 +111,23 @@ public class TextFormatter : ITextFormatter
             result = StripFillers(result, protectedWords);
         }
 
+        if (listFormattingActive)
+        {
+            result = ApplyListFormattingSafetyNet(rawText, result);
+            result = FormatListSpacing(result);
+        }
+
         _fileLogger.Log($"Chat model '{_modelManager.LoadedChatModelAlias ?? "unknown"}' cleaned text: {result}");
         return result;
     }
 
-    internal static string RejectIfHallucinated(string rawText, string result, string? modeId = null, bool cleanEnabled = false)
+    internal static string RejectIfHallucinated(string rawText, string result, string? modeId = null, bool cleanEnabled = false, bool listFormattingEnabled = false)
     {
         if (string.IsNullOrWhiteSpace(result)) return rawText;
 
+        var comparisonResult = listFormattingEnabled ? result.Replace('\n', ' ').Replace('\r', ' ') : result;
         var rawWords = rawText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var resultWords = result.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var resultWords = comparisonResult.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         if (resultWords.Length > rawWords.Length * 2 && rawWords.Length > 0)
             return rawText;
@@ -164,9 +189,12 @@ public class TextFormatter : ITextFormatter
                 return rawText;
         }
 
-        var explanatoryPatterns = new[] { "1.", "2.", "3.", "4.", "5.", "* ", "- ", "**", "##", "###" };
-        if (explanatoryPatterns.Any(p => result.Contains(p, StringComparison.Ordinal)))
-            return rawText;
+        if (!listFormattingEnabled)
+        {
+            var explanatoryPatterns = new[] { "1.", "2.", "3.", "4.", "5.", "* ", "- ", "**", "##", "###" };
+            if (explanatoryPatterns.Any(p => result.Contains(p, StringComparison.Ordinal)))
+                return rawText;
+        }
 
         return result;
     }
@@ -369,5 +397,155 @@ public class TextFormatter : ITextFormatter
         text = text.Trim();
 
         return text;
+    }
+
+    internal static string ApplyListFormattingSafetyNet(string rawText, string result)
+    {
+        if (string.IsNullOrWhiteSpace(rawText) || string.IsNullOrWhiteSpace(result))
+            return result;
+
+        var hasNumericSequence = (Regex.IsMatch(rawText, @"\b1\.\s") && Regex.IsMatch(rawText, @"\b2\.\s")) ||
+                                 (Regex.IsMatch(rawText, @"\b1\)\s") && Regex.IsMatch(rawText, @"\b2\)\s"));
+        if (!hasNumericSequence)
+        {
+            return result;
+        }
+
+        var pattern = @"(?<![\r\n])\b(?<num>\d+)[\.\)]\s";
+        var matches = Regex.Matches(result, pattern);
+        if (matches.Count > 0)
+        {
+            var sb = new StringBuilder();
+            int lastIndex = 0;
+            bool isFirst = true;
+
+            foreach (Match m in matches)
+            {
+                var segment = result.Substring(lastIndex, m.Index - lastIndex);
+                sb.Append(segment);
+
+                if (isFirst)
+                {
+                    if (!string.IsNullOrWhiteSpace(segment))
+                    {
+                        while (sb.Length > 0 && char.IsWhiteSpace(sb[^1]))
+                        {
+                            sb.Length--;
+                        }
+                        sb.Append("\n\n");
+                    }
+                    isFirst = false;
+                }
+                else
+                {
+                    while (sb.Length > 0 && char.IsWhiteSpace(sb[^1]))
+                    {
+                        sb.Length--;
+                    }
+                    sb.Append("\n");
+                }
+
+                sb.Append(m.Value);
+                lastIndex = m.Index + m.Length;
+            }
+            sb.Append(result.Substring(lastIndex));
+            result = sb.ToString();
+        }
+
+        return result;
+    }
+
+    internal static string FormatListSpacing(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+
+        var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        var resultLines = new List<string>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var currentLine = lines[i].TrimEnd();
+            var trimmedStart = currentLine.TrimStart();
+            
+            if (string.IsNullOrWhiteSpace(currentLine))
+            {
+                int nextIdx = i + 1;
+                while (nextIdx < lines.Length && string.IsNullOrWhiteSpace(lines[nextIdx]))
+                {
+                    nextIdx++;
+                }
+                if (nextIdx < lines.Length)
+                {
+                    var nextTrimmed = lines[nextIdx].TrimStart();
+                    if (IsListItem(nextTrimmed))
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            bool isCurrentList = IsListItem(trimmedStart);
+
+            if (resultLines.Count > 0)
+            {
+                var prevLine = resultLines[^1];
+                var prevTrimmed = prevLine.TrimStart();
+                bool isPrevList = IsListItem(prevTrimmed);
+                bool isPrevEmpty = string.IsNullOrWhiteSpace(prevLine);
+
+                if (isCurrentList)
+                {
+                    if (isPrevList)
+                    {
+                        // Single newline: do nothing
+                    }
+                    else if (!isPrevEmpty)
+                    {
+                        // List starting after text: ensure double newline
+                        resultLines.Add("");
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(currentLine))
+                {
+                    if (isPrevList)
+                    {
+                        // Text starting after list: ensure double newline
+                        resultLines.Add("");
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(currentLine))
+            {
+                if (resultLines.Count == 0 || string.IsNullOrWhiteSpace(resultLines[^1]))
+                {
+                    continue;
+                }
+            }
+
+            resultLines.Add(currentLine);
+        }
+
+        while (resultLines.Count > 0 && string.IsNullOrWhiteSpace(resultLines[^1]))
+        {
+            resultLines.RemoveAt(resultLines.Count - 1);
+        }
+
+        return string.Join("\n", resultLines);
+    }
+
+    private static bool IsListItem(string trimmedLine)
+    {
+        if (string.IsNullOrEmpty(trimmedLine)) return false;
+
+        if ((trimmedLine.StartsWith("- ") || trimmedLine.StartsWith("* ")) && trimmedLine.Length > 2)
+            return true;
+
+        if (trimmedLine.StartsWith("- [ ]") || trimmedLine.StartsWith("- [x]") || trimmedLine.StartsWith("- [X]") ||
+            trimmedLine.StartsWith("* [ ]") || trimmedLine.StartsWith("* [x]") || trimmedLine.StartsWith("* [X]"))
+            return true;
+
+        var match = Regex.Match(trimmedLine, @"^[1-9]\d{0,2}[\.\)]\s");
+        return match.Success;
     }
 }

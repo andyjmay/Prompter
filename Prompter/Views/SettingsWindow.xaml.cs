@@ -78,6 +78,7 @@ public partial class SettingsWindow : Window
         CleanEnabledCheckBox.IsChecked = _config.CleanEnabled;
         CleanPromptTextBox.Text = _config.CleanPrompt ?? string.Empty;
         UpdateCleanPromptControlsState();
+        ListFormattingEnabledCheckBox.IsChecked = _config.ListFormattingEnabled;
         HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
@@ -1081,7 +1082,8 @@ public partial class SettingsWindow : Window
             NotifyOnOutputReady = NotifyOnOutputReadyCheckBox.IsChecked == true,
             SpokenPunctuationEnabled = SpokenPunctuationCheckBox.IsChecked == true,
             CleanEnabled = CleanEnabledCheckBox.IsChecked == true,
-            CleanPrompt = CleanPromptTextBox.Text.Trim()
+            CleanPrompt = CleanPromptTextBox.Text.Trim(),
+            ListFormattingEnabled = ListFormattingEnabledCheckBox.IsChecked == true
         };
 
         _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };

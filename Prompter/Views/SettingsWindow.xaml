@@ -365,6 +365,7 @@
                             <TextBox x:Name="CleanPromptTextBox" Grid.Column="0" ToolTip="Custom prompt instructions appended when removing filler words" FontSize="11" TextWrapping="Wrap" Height="40" VerticalScrollBarVisibility="Auto" Margin="0,0,8,0"/>
                             <Button x:Name="ResetCleanPromptButton" Content="Reset" Grid.Column="1" VerticalAlignment="Top" Padding="8,4" Click="ResetCleanPromptButton_Click"/>
                         </Grid>
+                        <CheckBox x:Name="ListFormattingEnabledCheckBox" Content="Format lists (List mode)" Margin="0,0,0,10"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
