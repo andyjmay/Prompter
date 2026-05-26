@@ -61,13 +61,11 @@ public partial class ModeEditorDialog : Window
         };
 
         DialogResult = true;
-        Close();
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private static string GenerateIdFromName(string name)

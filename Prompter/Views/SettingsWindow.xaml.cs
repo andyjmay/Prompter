@@ -29,8 +29,6 @@ public partial class SettingsWindow : Window
     private bool _finalizing;
     private readonly Dictionary<string, string> _displayNameToAlias = new();
     private readonly Dictionary<string, string> _whisperDisplayNameToAlias = new();
-    private string? _activeSortBy;
-    private ListSortDirection _activeSortDirection = ListSortDirection.Ascending;
     private RecordingOverlay? _previewOverlay;
     private PreviewToast? _previewToast;
     private readonly ITextFormatter _textFormatter;
@@ -60,6 +58,7 @@ public partial class SettingsWindow : Window
         IThemeService themeService)
     {
         InitializeComponent();
+        ShowSection(0);
         _configService = configService;
         _clipboardService = clipboardService;
         _startupService = startupService;
@@ -106,7 +105,7 @@ public partial class SettingsWindow : Window
         _ = RefreshModelsDashboardAsync();
         DetectGpuStatus();
         InitializeAppearanceControls();
-        LoadLogs();
+        _ = LoadLogsAsync();
     }
 
     private void InitializeAppearanceControls()
@@ -143,12 +142,21 @@ public partial class SettingsWindow : Window
         OverlayBackgroundColorTextBox.Text = _config.OverlayStyle.OverlayBackgroundColor ?? string.Empty;
         ToastBackgroundColorTextBox.Text = _config.OverlayStyle.ToastBackgroundColor ?? string.Empty;
 
-        var commonFonts = new[] { "Segoe UI", "Segoe UI Variable", "Arial", "Calibri", "Cambria", "Consolas", "Cascadia Code", "Courier New", "Georgia", "Impact", "Lucida Console", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana" };
-        foreach (var font in commonFonts)
+        var systemFonts = System.Windows.Media.Fonts.SystemFontFamilies
+            .Select(f => f.Source)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var font in systemFonts)
         {
             FontFamilyComboBox.Items.Add(font);
         }
-        FontFamilyComboBox.Text = _config.OverlayStyle.FontFamily;
+
+        var currentFont = _config.OverlayStyle.FontFamily;
+        if (!string.IsNullOrWhiteSpace(currentFont) && !systemFonts.Any(f => f.Equals(currentFont, StringComparison.OrdinalIgnoreCase)))
+        {
+            FontFamilyComboBox.Items.Add(currentFont);
+        }
+        FontFamilyComboBox.Text = currentFont;
 
         OverlayFontSizeSlider.Value = _config.OverlayStyle.OverlayFontSize;
         OverlayFontSizeValue.Text = _config.OverlayStyle.OverlayFontSize.ToString();
@@ -315,20 +323,29 @@ public partial class SettingsWindow : Window
         ToastBackgroundPreview.Background = GetPreviewBrush(style.ToastBackgroundColor, brushes.ToastBackground);
     }
 
+    private static bool IsValidHexColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        try
+        {
+            _ = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private OverlayStyleConfig BuildStyleFromControls()
     {
         var themeText = ThemeComboBox.SelectedItem as string ?? "Dark";
         var theme = Enum.TryParse<OverlayTheme>(themeText, out var t) ? t : OverlayTheme.Dark;
-        var accent = AccentColorTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(accent)) accent = null;
-        var textColor = TextColorTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(textColor)) textColor = null;
-        var processingAccent = ProcessingAccentColorTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(processingAccent)) processingAccent = null;
-        var overlayBg = OverlayBackgroundColorTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(overlayBg)) overlayBg = null;
-        var toastBg = ToastBackgroundColorTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(toastBg)) toastBg = null;
+        var accent = IsValidHexColor(AccentColorTextBox.Text) ? AccentColorTextBox.Text.Trim() : null;
+        var textColor = IsValidHexColor(TextColorTextBox.Text) ? TextColorTextBox.Text.Trim() : null;
+        var processingAccent = IsValidHexColor(ProcessingAccentColorTextBox.Text) ? ProcessingAccentColorTextBox.Text.Trim() : null;
+        var overlayBg = IsValidHexColor(OverlayBackgroundColorTextBox.Text) ? OverlayBackgroundColorTextBox.Text.Trim() : null;
+        var toastBg = IsValidHexColor(ToastBackgroundColorTextBox.Text) ? ToastBackgroundColorTextBox.Text.Trim() : null;
 
         var pulseSpeedText = PulseSpeedComboBox.SelectedItem as string ?? "Normal";
         var pulseSpeed = Enum.TryParse<OverlayPulseSpeed>(pulseSpeedText, out var ps) ? ps : OverlayPulseSpeed.Normal;
@@ -376,6 +393,7 @@ public partial class SettingsWindow : Window
         }).ToList();
 
         ModesListView.ItemsSource = items;
+        ModesEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (selectedId != null)
         {
@@ -533,6 +551,7 @@ public partial class SettingsWindow : Window
         }).ToList();
 
         DictionaryListView.ItemsSource = items;
+        DictionaryEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (selectedIndex >= 0 && selectedIndex < items.Count)
         {
@@ -647,6 +666,7 @@ public partial class SettingsWindow : Window
         }).ToList();
 
         SnippetsListView.ItemsSource = items;
+        SnippetsEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (selectedTrigger != null)
         {
@@ -765,7 +785,7 @@ public partial class SettingsWindow : Window
             LoadingModelsText.Visibility = Visibility.Collapsed;
 
             var configuredAlias = _config.ChatModelId;
-            var configuredDisplay = models.FirstOrDefault(m => m.Alias == configuredAlias).DisplayName;
+            var configuredDisplay = models.FirstOrDefault(m => m.Alias.Equals(configuredAlias, StringComparison.OrdinalIgnoreCase)).DisplayName;
             if (string.Equals(configuredAlias, "none", StringComparison.OrdinalIgnoreCase))
             {
                 ChatModelComboBox.SelectedItem = "None";
@@ -867,7 +887,7 @@ public partial class SettingsWindow : Window
             }
             else
             {
-                configuredDisplay = models.FirstOrDefault(m => m.Alias == _config.WhisperModelId).DisplayName;
+                configuredDisplay = models.FirstOrDefault(m => m.Alias.Equals(_config.WhisperModelId, StringComparison.OrdinalIgnoreCase)).DisplayName;
             }
 
             if (configuredDisplay != null)
@@ -911,11 +931,7 @@ public partial class SettingsWindow : Window
             }).ToList();
 
             ModelsListView.ItemsSource = augmented;
-
-            if (!string.IsNullOrEmpty(_activeSortBy))
-            {
-                Sort(_activeSortBy, _activeSortDirection);
-            }
+            ModelsEmptyText.Visibility = augmented.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex)
         {
@@ -925,7 +941,10 @@ public partial class SettingsWindow : Window
 
     private void DetectGpuStatus()
     {
-        GpuStatusTextBlock.Text = "DirectML GPU/NPU acceleration active (ONNX Runtime)";
+        // Foundry Local abstracts the execution provider; we cannot query GPU availability
+        // without loading a model session. Show a neutral message instead of implying
+        // acceleration is definitely available.
+        GpuStatusTextBlock.Text = "ONNX Runtime with DirectML (CPU default; GPU/NPU if available)";
     }
 
     private async void DownloadModelButton_Click(object sender, RoutedEventArgs e)
@@ -1094,6 +1113,12 @@ public partial class SettingsWindow : Window
         var lastDisplay = "";
         DateTime? modsStableSince = null;
 
+        if (_captureTimer != null)
+        {
+            _captureTimer.Stop();
+            _captureTimer = null;
+        }
+
         _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         var endTime = DateTime.Now.AddSeconds(15);
 
@@ -1233,43 +1258,99 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void Save_Click(object sender, RoutedEventArgs e)
+    private void PasteThresholdTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
-        var parts = HotkeyTextBox.Text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length < 2)
+        if (!int.TryParse(PasteThresholdTextBox.Text, out var threshold) || threshold < 0)
         {
-            MessageBox.Show(
-                "Please capture a valid hotkey before saving.",
-                "Invalid Hotkey",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            PasteThresholdTextBox.Text = "150";
+            PasteThresholdTextBox.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+            return;
+        }
+        PasteThresholdTextBox.Text = Math.Clamp(threshold, 0, 9999).ToString();
+        PasteThresholdTextBox.ClearValue(TextBox.BorderBrushProperty);
+    }
+
+    private void OffsetTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (!int.TryParse(tb.Text, out var value))
+        {
+            tb.Text = "0";
+            tb.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+            return;
+        }
+        tb.Text = value.ToString();
+        tb.ClearValue(TextBox.BorderBrushProperty);
+    }
+
+    private void FontFamilyComboBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var text = FontFamilyComboBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            FontFamilyComboBox.Text = "Segoe UI";
             return;
         }
 
-        var knownModifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Win", "Ctrl", "Alt", "Shift" };
-
-        if (knownModifiers.Contains(parts[^1]))
+        var exists = System.Windows.Media.Fonts.SystemFontFamilies
+            .Any(f => f.Source.Equals(text, StringComparison.OrdinalIgnoreCase));
+        if (!exists)
         {
-            _config = _config with { HotkeyModifiers = string.Join("+", parts), HotkeyKey = "" };
+            FontFamilyComboBox.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
         }
         else
         {
+            FontFamilyComboBox.ClearValue(ComboBox.BorderBrushProperty);
+        }
+    }
+
+    private async void Save_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var parts = HotkeyTextBox.Text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length < 2)
+            {
+                MessageBox.Show(
+                    "Please capture a valid hotkey before saving.",
+                    "Invalid Hotkey",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var knownModifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Win", "Ctrl", "Alt", "Shift" };
+            bool allModifiers = parts.All(p => knownModifiers.Contains(p));
+
+            string key;
+            string modifiers;
+            if (allModifiers)
+            {
+                // Modifier-only hotkey (supported by HotkeyService)
+                key = "";
+                modifiers = string.Join("+", parts);
+            }
+            else
+            {
+                key = parts[^1];
+                modifiers = string.Join("+", parts[..^1]);
+            }
+
             _config = _config with
             {
-                HotkeyKey = parts[^1],
-                HotkeyModifiers = string.Join("+", parts[..^1])
+                HotkeyKey = key,
+                HotkeyModifiers = modifiers
             };
-        }
 
-        if (IsDangerousShortcut(_config.HotkeyModifiers, _config.HotkeyKey))
-        {
-            MessageBox.Show(
-                "This key combination is reserved by Windows and cannot be used as a global hotkey.\n\nPlease choose a different combination.",
-                "Invalid Hotkey",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
-        }
+            if (IsDangerousShortcut(_config.HotkeyModifiers, _config.HotkeyKey))
+            {
+                MessageBox.Show(
+                    "This key combination is reserved by Windows and cannot be used as a global hotkey.\n\nPlease choose a different combination.",
+                    "Invalid Hotkey",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
 
         _config = _config with
         {
@@ -1287,7 +1368,7 @@ public partial class SettingsWindow : Window
         _config = _config with { UseClipboardPaste = UsePasteCheckBox.IsChecked == true };
         if (int.TryParse(PasteThresholdTextBox.Text, out var threshold))
         {
-            _config = _config with { PasteThresholdCharacters = threshold };
+            _config = _config with { PasteThresholdCharacters = Math.Clamp(threshold, 0, 9999) };
         }
         else
         {
@@ -1373,6 +1454,10 @@ public partial class SettingsWindow : Window
             }
         }
 
+        var oldChatModelId = _config.ChatModelId;
+        var oldUseCustomChat = _config.UseCustomChat;
+        var oldCustomChatPath = _config.CustomChatModelPath;
+
         _config = _config with
         {
             ChatModelId = proposedAlias,
@@ -1413,13 +1498,16 @@ public partial class SettingsWindow : Window
         await _configService.SaveAsync(_config);
         _themeService.ApplyTheme(_config.OverlayStyle.Theme);
 
-        try
+        if (proposedAlias != oldChatModelId || useCustomChat != oldUseCustomChat || customChatPath != oldCustomChatPath)
         {
-            await _modelManager.UnloadChatModelAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogException(ex, "UnloadChatModelAsync on settings save");
+            try
+            {
+                await _modelManager.UnloadChatModelAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogException(ex, "UnloadChatModelAsync on settings save");
+            }
         }
 
         if (proposedWhisperAlias != oldWhisperModel || useCustomWhisper != oldUseCustomWhisper || customWhisperPath != oldCustomPath)
@@ -1436,6 +1524,16 @@ public partial class SettingsWindow : Window
 
         DialogResult = true;
         Close();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "Save settings failed");
+            MessageBox.Show(
+                $"Failed to save settings:\n{ex.Message}",
+                "Save Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private static bool IsDangerousShortcut(string modifiers, string key)
@@ -1452,21 +1550,21 @@ public partial class SettingsWindow : Window
 
         if (hasWin && !hasCtrl && !hasAlt && !hasShift && !string.IsNullOrEmpty(k))
         {
-            var winReserved = new[] { "L", "R", "E", "I", "X", "TAB", "A", "S", "Q", "P", "D", "M", "N", "U", "V", "SHIFT", "C", "Z", "J", "H", "K", "G", "T", "COMMA", "PERIOD", "NUMLOCK", "PAUSE", "BREAK", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PGUP", "PGDN", "INSERT", "DELETE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "PRINTSCREEN", "SNAPSHOT", "SNAP", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+            var winReserved = new[] { "L", "R", "E", "I", "X", "TAB", "A", "S", "Q", "P", "D", "M", "N", "U", "V", "SHIFT", "C", "Z", "J", "H", "K", "G", "T", "OEMCOMMA", "OEMPERIOD", "NUMLOCK", "PAUSE", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PAGEUP", "PAGEDOWN", "INSERT", "DELETE", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "SNAPSHOT", "D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9" };
             if (winReserved.Contains(k)) return true;
         }
 
-        if (hasCtrl && hasAlt && !hasShift && (k == "DELETE" || k == "DEL")) return true;
+        if (hasCtrl && hasAlt && !hasShift && k == "DELETE") return true;
 
         if (hasAlt && !hasCtrl && !hasShift && !hasWin && !string.IsNullOrEmpty(k))
         {
-            var altReserved = new[] { "TAB", "ESC", "F4" };
+            var altReserved = new[] { "TAB", "ESCAPE", "F4" };
             if (altReserved.Contains(k)) return true;
         }
 
         if (hasCtrl && hasAlt && !hasShift && !hasWin && k == "TAB") return true;
 
-        if (!hasWin && !hasCtrl && !hasAlt && !hasShift && (k == "PRINTSCREEN" || k == "SNAPSHOT" || k == "SNAP")) return true;
+        if (!hasWin && !hasCtrl && !hasAlt && !hasShift && k == "SNAPSHOT") return true;
 
         return false;
     }
@@ -1488,161 +1586,84 @@ public partial class SettingsWindow : Window
 
     private void Preview_Click(object sender, RoutedEventArgs e)
     {
-        _previewOverlay?.Close();
-        _previewOverlay = null;
-        _previewToast?.Close();
-        _previewToast = null;
-
-        var style = BuildStyleFromControls();
-
-        var recordingAnchor = Enum.TryParse<OverlayAnchor>(RecordingAnchorComboBox.SelectedItem as string, out var ra) ? ra : OverlayAnchor.TopCenter;
-        var recordingPlacement = new OverlayPlacementConfig
+        try
         {
-            Anchor = recordingAnchor,
-            OffsetX = int.TryParse(RecordingOffsetXTextBox.Text, out var rox) ? rox : 0,
-            OffsetY = int.TryParse(RecordingOffsetYTextBox.Text, out var roy) ? roy : 0,
-            Enabled = true
-        };
+            _previewOverlay?.Close();
+            _previewOverlay = null;
+            _previewToast?.Close();
+            _previewToast = null;
 
-        var previewAnchor = Enum.TryParse<OverlayAnchor>(PreviewAnchorComboBox.SelectedItem as string, out var pa) ? pa : OverlayAnchor.BottomRight;
-        var previewPlacement = new OverlayPlacementConfig
+            var style = BuildStyleFromControls();
+
+            var recordingAnchor = Enum.TryParse<OverlayAnchor>(RecordingAnchorComboBox.SelectedItem as string, out var ra) ? ra : OverlayAnchor.TopCenter;
+            var recordingPlacement = new OverlayPlacementConfig
+            {
+                Anchor = recordingAnchor,
+                OffsetX = int.TryParse(RecordingOffsetXTextBox.Text, out var rox) ? rox : 0,
+                OffsetY = int.TryParse(RecordingOffsetYTextBox.Text, out var roy) ? roy : 0,
+                Enabled = true
+            };
+
+            var previewAnchor = Enum.TryParse<OverlayAnchor>(PreviewAnchorComboBox.SelectedItem as string, out var pa) ? pa : OverlayAnchor.BottomRight;
+            var previewPlacement = new OverlayPlacementConfig
+            {
+                Anchor = previewAnchor,
+                OffsetX = int.TryParse(PreviewOffsetXTextBox.Text, out var pox) ? pox : 0,
+                OffsetY = int.TryParse(PreviewOffsetYTextBox.Text, out var poy) ? poy : 0,
+                Enabled = true
+            };
+
+            var previewToastConfig = new PreviewToastSpecificConfig
+            {
+                Placement = previewPlacement,
+                DurationSeconds = (int)ToastDurationSlider.Value,
+                MaxWidth = (int)MaxWidthSlider.Value
+            };
+
+            _previewOverlay = new RecordingOverlay(recordingPlacement, style);
+            _previewOverlay.Show();
+
+            _previewToast = new PreviewToast(
+                "This is a preview of how your transcribed text will appear.",
+                _clipboardService,
+                previewToastConfig,
+                style);
+            _previewToast.Show();
+        }
+        catch (Exception ex)
         {
-            Anchor = previewAnchor,
-            OffsetX = int.TryParse(PreviewOffsetXTextBox.Text, out var pox) ? pox : 0,
-            OffsetY = int.TryParse(PreviewOffsetYTextBox.Text, out var poy) ? poy : 0,
-            Enabled = true
-        };
-
-        var previewToastConfig = new PreviewToastSpecificConfig
-        {
-            Placement = previewPlacement,
-            DurationSeconds = (int)ToastDurationSlider.Value,
-            MaxWidth = (int)MaxWidthSlider.Value
-        };
-
-        _previewOverlay = new RecordingOverlay(recordingPlacement, style);
-        _previewOverlay.Show();
-
-        _previewToast = new PreviewToast(
-            "This is a preview of how your transcribed text will appear.",
-            _clipboardService,
-            previewToastConfig,
-            style);
-        _previewToast.Show();
+            _logger.LogException(ex, "Preview settings failed");
+            MessageBox.Show(
+                $"Failed to show preview:\n{ex.Message}",
+                "Preview Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
         base.OnClosing(e);
+        _captureTimer?.Stop();
+        _captureTimer = null;
         _previewOverlay?.Close();
         _previewOverlay = null;
         _previewToast?.Close();
         _previewToast = null;
     }
 
-    private void GridViewColumnHeader_Click(object sender, RoutedEventArgs e)
-    {
-        var headerClicked = e.OriginalSource as GridViewColumnHeader;
-        if (headerClicked == null || headerClicked.Column == null)
-            return;
-
-        string? headerText = headerClicked.Column.Header as string;
-        if (string.IsNullOrEmpty(headerText))
-            return;
-
-        string? sortBy = GetSortPropertyByHeader(headerText);
-        if (string.IsNullOrEmpty(sortBy))
-            return;
-
-        ListSortDirection direction;
-        if (_activeSortBy == sortBy)
-        {
-            direction = _activeSortDirection == ListSortDirection.Ascending
-                ? ListSortDirection.Descending
-                : ListSortDirection.Ascending;
-        }
-        else
-        {
-            direction = ListSortDirection.Ascending;
-        }
-
-        _activeSortBy = sortBy;
-        _activeSortDirection = direction;
-
-        Sort(sortBy, direction);
-        UpdateHeaderSymbols(headerClicked, direction);
-    }
-
-    private string? GetSortPropertyByHeader(string headerText)
-    {
-        string cleanText = headerText.Replace(" ▲", "").Replace(" ▼", "").Trim();
-        return cleanText switch
-        {
-            "Model Alias" => "Alias",
-            "Type" => "TaskType",
-            "Size" => "SizeInMegabytes",
-            "Downloaded" => "IsCached",
-            "Loaded" => "IsLoaded",
-            _ => null
-        };
-    }
-
-    private void Sort(string sortBy, ListSortDirection direction)
-    {
-        var dataView = CollectionViewSource.GetDefaultView(ModelsListView.ItemsSource);
-        if (dataView is ListCollectionView listView)
-        {
-            listView.SortDescriptions.Clear();
-            if (sortBy == "SizeInMegabytes")
-            {
-                listView.CustomSort = new SizeInMegabytesComparer(direction);
-            }
-            else
-            {
-                listView.CustomSort = null;
-                listView.SortDescriptions.Add(new SortDescription(sortBy, direction));
-            }
-            listView.Refresh();
-        }
-        else if (dataView != null)
-        {
-            dataView.SortDescriptions.Clear();
-            dataView.SortDescriptions.Add(new SortDescription(sortBy, direction));
-            dataView.Refresh();
-        }
-    }
-
-    private void UpdateHeaderSymbols(GridViewColumnHeader clickedHeader, ListSortDirection direction)
-    {
-        if (ModelsListView.View is GridView gridView)
-        {
-            foreach (var column in gridView.Columns)
-            {
-                if (column.Header is string headerText)
-                {
-                    headerText = headerText.Replace(" ▲", "").Replace(" ▼", "");
-
-                    if (column == clickedHeader.Column)
-                    {
-                        headerText += (direction == ListSortDirection.Ascending) ? " ▲" : " ▼";
-                    }
-
-                    column.Header = headerText;
-                }
-            }
-        }
-    }
-
-    private void LoadLogs()
+    private async Task LoadLogsAsync()
     {
         try
         {
-            _allLogEntries = _logger.GetRecentLogs(maxEntries: 5000).ToList();
+            var entries = await Task.Run(() => _logger.GetRecentLogs(maxEntries: 5000).ToList());
+            _allLogEntries = entries;
             LogsListView.ItemsSource = _allLogEntries;
+            LogsEmptyText.Visibility = _allLogEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex)
         {
-            _logger.LogException(ex, "LoadLogs");
+            _logger.LogException(ex, "LoadLogsAsync");
         }
     }
 
@@ -1660,6 +1681,7 @@ public partial class SettingsWindow : Window
         _logger.ClearLogs();
         _allLogEntries.Clear();
         LogsListView.ItemsSource = null;
+        LogsEmptyText.Visibility = Visibility.Visible;
         LogsFilterTextBox.Text = "";
     }
 
@@ -1686,11 +1708,12 @@ public partial class SettingsWindow : Window
 
                 return entry.Message.Contains(filterText, StringComparison.OrdinalIgnoreCase)
                     || entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture).Contains(filterText, StringComparison.OrdinalIgnoreCase)
-                    || entry.SourceFile.Contains(filterText, StringComparison.OrdinalIgnoreCase);
+                    || (entry.SourceFile?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false);
             };
         }
 
         view.Refresh();
+        LogsEmptyText.Visibility = view.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
     }
     private void Nav_Checked(object sender, RoutedEventArgs e)
     {
@@ -1712,14 +1735,14 @@ public partial class SettingsWindow : Window
             LogsSection
         };
 
-        foreach (var section in sections)
-        {
-            section.Visibility = Visibility.Collapsed;
-        }
-
         if (index >= 0 && index < sections.Length)
         {
-            sections[index].Visibility = Visibility.Visible;
+            var target = sections[index];
+            if (target.Parent is System.Windows.Controls.Panel panel)
+            {
+                panel.Children.Remove(target);
+            }
+            TabContentHost.Content = target;
         }
     }
 
@@ -1785,6 +1808,17 @@ public class SnippetListItem
     public Snippet Entry { get; set; } = new();
 }
 
+public class BoolToVisibilityConverter : System.Windows.Data.IValueConverter
+{
+    public object Convert(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is bool b) return b ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        return System.Windows.Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture) => throw new System.NotImplementedException();
+}
+
 public class BoolToTextConverter : System.Windows.Data.IValueConverter
 {
     public string TrueText { get; set; } = "Yes";
@@ -1815,21 +1849,4 @@ public class BoolToBrushConverter : System.Windows.Data.IValueConverter
     }
 
     public object ConvertBack(object value, System.Type targetType, object parameter, System.Globalization.CultureInfo culture) => throw new System.NotImplementedException();
-}
-
-public class SizeInMegabytesComparer : IComparer
-{
-    private readonly ListSortDirection _direction;
-    public SizeInMegabytesComparer(ListSortDirection direction) => _direction = direction;
-
-    public int Compare(object? x, object? y)
-    {
-        if (x is not ModelStatusInfo a || y is not ModelStatusInfo b)
-            return 0;
-
-        var av = a.SizeInMegabytes ?? float.MaxValue;
-        var bv = b.SizeInMegabytes ?? float.MaxValue;
-        var result = av.CompareTo(bv);
-        return _direction == ListSortDirection.Ascending ? result : -result;
-    }
 }

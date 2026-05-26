@@ -243,6 +243,19 @@
                                           VerticalAlignment="Center"
                                           HorizontalAlignment="Left"/>
 
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Style="{x:Null}"
+                                 FocusVisualStyle="{x:Null}"
+                                 HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Center"
+                                 Margin="10,3,30,3"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 CaretBrush="{TemplateBinding Foreground}"
+                                 Visibility="Collapsed"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}"/>
+
                         <Popup x:Name="Popup"
                                Placement="Bottom"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
@@ -272,6 +285,10 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="false">
                             <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -363,8 +380,10 @@
                             BorderBrush="#FF252525"
                             BorderThickness="0,0,0,1"
                             Padding="{TemplateBinding Padding}">
-                        <GridViewRowPresenter Content="{TemplateBinding Content}"
-                                              Columns="{TemplateBinding GridView.ColumnCollection}"/>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -875,7 +894,7 @@
     <!-- ============================================ -->
     <Style x:Key="SettingDescriptionStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Foreground" Value="#FF888888"/>
+        <Setter Property="Foreground" Value="#FFBBBBBB"/>
         <Setter Property="Margin" Value="0,2,0,0"/>
     </Style>
 
@@ -884,11 +903,32 @@
     <!-- ============================================ -->
     <Style x:Key="InfoIconStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Foreground" Value="#FF888888"/>
+        <Setter Property="Foreground" Value="#FFBBBBBB"/>
         <Setter Property="Margin" Value="6,0,0,0"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Text" Value="&#xE946;"/>
         <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+    </Style>
+
+    <!-- ============================================ -->
+    <!-- Badge Base                                   -->
+    <!-- ============================================ -->
+    <Style x:Key="BadgeBaseStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+    </Style>
+
+    <Style x:Key="BadgeDefaultStyle" TargetType="Border" BasedOn="{StaticResource BadgeBaseStyle}">
+        <Setter Property="Background" Value="#FF004488"/>
+    </Style>
+
+    <Style x:Key="BadgeSkipStyle" TargetType="Border" BasedOn="{StaticResource BadgeBaseStyle}">
+        <Setter Property="Background" Value="#FF885500"/>
+    </Style>
+
+    <Style x:Key="BadgeDebugStyle" TargetType="Border" BasedOn="{StaticResource BadgeBaseStyle}">
+        <Setter Property="Background" Value="#FF555555"/>
     </Style>
 
 </ResourceDictionary>

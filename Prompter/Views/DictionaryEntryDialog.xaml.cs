@@ -30,6 +30,13 @@ public partial class DictionaryEntryDialog : Window
         if (string.IsNullOrWhiteSpace(alias))
             return;
 
+        var word = WordTextBox.Text.Trim();
+        if (alias.Equals(word, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show("An alias cannot be identical to the canonical word.", "Invalid Alias", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var items = (List<string>)AliasesListBox.ItemsSource;
         if (items.Any(a => a.Equals(alias, StringComparison.OrdinalIgnoreCase)))
         {
@@ -77,12 +84,10 @@ public partial class DictionaryEntryDialog : Window
         };
 
         DialogResult = true;
-        Close();
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 }
