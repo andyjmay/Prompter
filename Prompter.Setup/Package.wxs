@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="Prompter"
+           Manufacturer="Prompter"
+           Version="$(var.Version)"
+           UpgradeCode="c6691d48-04cd-4c64-9981-988301e624f6"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="Main" Title="Prompter" Level="1">
+      <ComponentGroupRef Id="PublishedFiles" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Prompter" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="StartMenuFolder">
+      <Directory Id="ApplicationStartMenuFolder" Name="Prompter">
+        <Component Id="ApplicationShortcut" Guid="8f2c1e3b-7d4a-4c65-9e82-3b5a9d0c4f71">
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="Prompter"
+                    Target="[INSTALLFOLDER]Prompter.exe"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="PrompterIcon.exe"
+                    Description="Prompter speech-to-text assistant" />
+          <RemoveFolder Id="ApplicationStartMenuFolder" On="uninstall" />
+          <RegistryValue Root="HKCU"
+                         Key="Software\Prompter"
+                         Name="installed"
+                         Type="integer"
+                         Value="1"
+                         KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Icon Id="PrompterIcon.exe" SourceFile="..\Prompter\Assets\prompter.ico" />
+    <Property Id="ARPPRODUCTICON" Value="PrompterIcon.exe" />
+
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" />
+      <Publish Dialog="WelcomeDlg"
+               Control="Next"
+               Event="NewDialog"
+               Value="InstallDirDlg"
+               Order="2" />
+      <Publish Dialog="InstallDirDlg"
+               Control="Back"
+               Event="NewDialog"
+               Value="WelcomeDlg"
+               Order="2" />
+    </UI>
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+  </Package>
+
+</Wix>

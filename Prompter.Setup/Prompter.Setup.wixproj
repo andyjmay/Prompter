@@ -1,0 +1,41 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <Platforms>x64</Platforms>
+    <Platform>x64</Platform>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Heat" Version="5.0.2" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Prompter\Prompter.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <DoNotHarvest>true</DoNotHarvest>
+    </ProjectReference>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PublishDir>$(ProjectDir)..\Prompter\bin\$(Configuration)\net10.0-windows10.0.26100.0\win-x64\publish\</PublishDir>
+    <DefineConstants>PublishDir=$(PublishDir);Version=$(Version)</DefineConstants>
+  </PropertyGroup>
+
+  <Target Name="PublishApp" BeforeTargets="Harvest">
+    <Exec Command="dotnet publish &quot;$(ProjectDir)..\Prompter\Prompter.csproj&quot; -c $(Configuration) -r win-x64 --self-contained true -p:PublishSingleFile=false" />
+  </Target>
+
+  <ItemGroup>
+    <HarvestDirectory Include="$(PublishDir)">
+      <ComponentGroupName>PublishedFiles</ComponentGroupName>
+      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+      <SuppressRootDirectory>true</SuppressRootDirectory>
+      <SuppressCom>true</SuppressCom>
+      <SuppressRegistry>true</SuppressRegistry>
+      <PreprocessorVariable>var.PublishDir</PreprocessorVariable>
+    </HarvestDirectory>
+  </ItemGroup>
+
+</Project>

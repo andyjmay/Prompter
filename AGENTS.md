@@ -3,7 +3,7 @@
 Compact guidance for future OpenCode sessions in this repo.
 
 ## Project basics
-- **Multi-project .NET 10 WPF desktop app solution** containing three projects: the WPF main app (`Prompter`), an xUnit-based unit test suite (`Prompter.Tests`), and an offline quality evaluation benchmark CLI tool (`Prompter.Eval`).
+- **Multi-project .NET 10 WPF desktop app solution** containing four projects: the WPF main app (`Prompter`), an xUnit-based unit test suite (`Prompter.Tests`), an offline quality evaluation benchmark CLI tool (`Prompter.Eval`), and a WiX-based MSI installer (`Prompter.Setup`).
 - Solution uses the new XML format: `Prompter.slnx` (not `.sln`).
 - Target: `net10.0-windows10.0.26100.0`; RIDs: `win-x64`, `win-arm64`.
 - `TreatWarningsAsErrors` is **enabled** — warnings are build errors.
@@ -25,6 +25,9 @@ dotnet test Prompter.Tests/Prompter.Tests.csproj
 
 # Run offline benchmark evaluation
 dotnet run --project Prompter.Eval/Prompter.Eval.csproj [--smoke | --full]
+
+# Build the MSI installer (x64, self-contained)
+dotnet build Prompter.Setup/Prompter.Setup.wixproj -c Release
 ```
 
 ## Architecture

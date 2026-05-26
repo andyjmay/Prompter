@@ -2,4 +2,7 @@
   <Project Path="Prompter/Prompter.csproj" />
   <Project Path="Prompter.Tests/Prompter.Tests.csproj" />
   <Project Path="Prompter.Eval/Prompter.Eval.csproj" />
+  <Project Path="Prompter.Setup/Prompter.Setup.wixproj" />
+  <Configuration Name="Debug" />
+  <Configuration Name="Release" />
 </Solution>
