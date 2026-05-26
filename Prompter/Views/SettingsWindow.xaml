@@ -19,7 +19,7 @@
         <local:BoolToBrushConverter x:Key="BoolToColorConverter" TrueBrush="#FF32CD32" FalseBrush="#FFFF4500"/>
         <local:BoolToBrushConverter x:Key="BoolToLoadedColorConverter" TrueBrush="#FF00BFFF" FalseBrush="#FF888888"/>
         <local:BoolToBrushConverter x:Key="BoolToErrorColorConverter" TrueBrush="#FFFF5555" FalseBrush="#FFCCCCCC"/>
-        <local:BoolToTextConverter x:Key="BoolToDefaultFlag" TrueText="Default " FalseText=""/>
+        <local:BoolToTextConverter x:Key="BoolToCurrentFlag" TrueText="Current " FalseText=""/>
         <local:BoolToTextConverter x:Key="BoolToSkipFlag" TrueText="Skip " FalseText=""/>
         <local:BoolToTextConverter x:Key="BoolToDebugFlag" TrueText="Debug" FalseText=""/>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -82,7 +82,7 @@
                         <TextBlock Text="&#xE8A5;"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    Width="24"/>
-                        <TextBlock Text="Models &amp; Clipboard"/>
+                        <TextBlock Text="Models"/>
                     </StackPanel>
                 </RadioButton>
 
@@ -155,23 +155,37 @@
                     BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="0,1,0,0"
                     Padding="24,12">
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right">
-                    <Button Content="Preview"
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="ResetAppearanceButton"
+                            Grid.Column="0"
+                            Content="Reset Appearance"
                             Style="{StaticResource GhostButtonStyle}"
-                            Width="100"
-                            Margin="0,0,8,0"
-                            Click="Preview_Click"/>
-                    <Button Content="Save Options"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            Width="120"
-                            Margin="0,0,8,0"
-                            Click="Save_Click"/>
-                    <Button Content="Cancel"
-                            Style="{StaticResource GhostButtonStyle}"
-                            Width="100"
-                            Click="Cancel_Click"/>
-                </StackPanel>
+                            Width="130"
+                            Click="ResetAppearanceButton_Click"
+                            Visibility="Collapsed"/>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button Content="Preview"
+                                Style="{StaticResource GhostButtonStyle}"
+                                Width="100"
+                                Margin="0,0,8,0"
+                                Click="Preview_Click"/>
+                        <Button Content="Save Options"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Width="120"
+                                Margin="0,0,8,0"
+                                Click="Save_Click"/>
+                        <Button Content="Cancel"
+                                Style="{StaticResource GhostButtonStyle}"
+                                Width="100"
+                                Click="Cancel_Click"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 
@@ -418,6 +432,46 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
+
+                        <!-- Clipboard Card -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Hybrid Keystroke Injection Settings"
+                                           Style="{StaticResource CardTitleStyle}"/>
+                                <TextBlock Text="Instantly paste long transcriptions using clipboard simulation instead of slow simulated typing."
+                                           Style="{StaticResource SettingDescriptionStyle}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ToggleButton x:Name="UsePasteCheckBox"
+                                                  Grid.Column="0"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,12,0"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="Enable hybrid clipboard paste"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,0"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="Paste threshold (chars):"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <TextBox x:Name="PasteThresholdTextBox"
+                                             Grid.Column="3"
+                                             Width="60"
+                                             Text="150"
+                                             VerticalAlignment="Center"
+                                             HorizontalContentAlignment="Center"
+                                             LostFocus="PasteThresholdTextBox_LostFocus"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
@@ -473,7 +527,7 @@
                                                     Margin="8,0">
                                             <Border Style="{StaticResource BadgeDefaultStyle}"
                                                     Visibility="{Binding IsDefault, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                <TextBlock Text="Default"
+                                                 <TextBlock Text="Current"
                                                            Foreground="White"
                                                            FontSize="11"
                                                            FontWeight="SemiBold"/>
@@ -530,7 +584,7 @@
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
                                     <Button x:Name="SetDefaultModeButton"
-                                            Content="Set Default"
+                                             Content="Set Current"
                                             Margin="0,0,8,0"
                                             Click="SetDefaultModeButton_Click"/>
                                     <Button x:Name="EditModeButton"
@@ -559,12 +613,11 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0"
-                           Text="Models &amp; Clipboard"
+                           Text="Models"
                            Style="{StaticResource SectionHeaderStyle}"/>
 
                 <!-- Model Selectors -->
@@ -651,48 +704,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Clipboard Card -->
-                <Border Grid.Row="3" Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Hybrid Keystroke Injection Settings"
-                                   Style="{StaticResource CardTitleStyle}"/>
-                        <TextBlock Text="Instantly paste long transcriptions using clipboard simulation instead of slow simulated typing."
-                                   Style="{StaticResource SettingDescriptionStyle}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,12"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <ToggleButton x:Name="UsePasteCheckBox"
-                                          Grid.Column="0"
-                                          Style="{StaticResource ToggleSwitchStyle}"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,12,0"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="Enable hybrid clipboard paste"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,16,0"/>
-                            <TextBlock Grid.Column="2"
-                                       Text="Paste threshold (chars):"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0"/>
-                            <TextBox x:Name="PasteThresholdTextBox"
-                                     Grid.Column="3"
-                                     Width="60"
-                                     Text="150"
-                                     VerticalAlignment="Center"
-                                     HorizontalContentAlignment="Center"
-                                     LostFocus="PasteThresholdTextBox_LostFocus"/>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
                 <!-- Model Dashboard -->
-                <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="0">
+                <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -1668,7 +1681,6 @@
             <!-- ========================================================= -->
             <Grid x:Name="LogsSection">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>

@@ -13,6 +13,7 @@ public partial class RecordingOverlay : Window
     private readonly OverlayPlacementConfig _placement;
     private readonly OverlayStyleConfig _style;
     private readonly bool _compact;
+    private readonly bool _showAudioMeter;
     private readonly string _listeningLabel;
     private readonly string _processingLabel;
 
@@ -22,6 +23,7 @@ public partial class RecordingOverlay : Window
         _placement = placement;
         _style = style;
         _compact = !style.ShowStatusText;
+        _showAudioMeter = placement.ShowAudioLevelMeter;
         _listeningLabel = style.ListeningLabel;
         _processingLabel = style.ProcessingLabel;
 
@@ -57,10 +59,9 @@ public partial class RecordingOverlay : Window
         {
             StatusText.Visibility = Visibility.Collapsed;
             PulseDot.Margin = new Thickness(0);
-            AudioMeter.Visibility = Visibility.Collapsed;
-            ProcessingBar.Visibility = Visibility.Collapsed;
         }
-        else if (placement.ShowAudioLevelMeter)
+
+        if (_showAudioMeter)
         {
             AudioMeter.Visibility = Visibility.Visible;
         }
@@ -86,7 +87,7 @@ public partial class RecordingOverlay : Window
 
     public void UpdateAudioLevel(double level)
     {
-        if (!_compact)
+        if (_showAudioMeter)
         {
             AudioMeter.Value = level;
         }
@@ -94,6 +95,13 @@ public partial class RecordingOverlay : Window
 
     public void TransitionToProcessing()
     {
+        if (Resources["PulseStoryboard"] is Storyboard sb)
+        {
+            sb.Stop();
+        }
+
+        AudioMeter.Visibility = Visibility.Collapsed;
+
         if (_compact)
         {
             var brushes = ThemeResolver.Resolve(_style);
@@ -101,13 +109,7 @@ public partial class RecordingOverlay : Window
             return;
         }
 
-        if (Resources["PulseStoryboard"] is Storyboard sb)
-        {
-            sb.Stop();
-        }
-
         PulseDot.Visibility = Visibility.Collapsed;
-        AudioMeter.Visibility = Visibility.Collapsed;
         ProcessingBar.Visibility = Visibility.Visible;
         StatusText.Text = _processingLabel;
         StatusText.Foreground = ProcessingBar.Foreground;
