@@ -568,7 +568,7 @@ public partial class CustomModelManagerWindow : Window
         {
             _downloadCts.Dispose();
             _downloadCts = null;
-            SetUIEnabled(true);
+            Dispatcher.Invoke(() => SetUIEnabled(true));
         }
     }
 
@@ -711,55 +711,61 @@ public partial class CustomModelManagerWindow : Window
         {
             _downloadCts.Dispose();
             _downloadCts = null;
-            SetUIEnabled(true);
+            Dispatcher.Invoke(() => SetUIEnabled(true));
         }
     }
 
-    private void WriteInferenceModelJsonTemplate(string folderPath, string modelAlias)
+    internal static Dictionary<string, string> BuildChatTemplate(string modelAlias)
+    {
+        var template = new Dictionary<string, string>();
+        var alias = modelAlias.ToLowerInvariant();
+        if (alias.Contains("qwen"))
+        {
+            template["system"] = "<|im_start|>system\n{content}\n";
+            template["user"] = "<|im_start|>user\n{content}\n";
+            template["assistant"] = "<|im_start|>assistant\n{content}\n";
+        }
+        else if (alias.Contains("phi"))
+        {
+            template["system"] = "<|system|>\n{content}<|end|>\n";
+            template["user"] = "<|user|>\n{content}<|end|>\n";
+            template["assistant"] = "<|assistant|>\n{content}<|end|>\n";
+        }
+        else if (alias.Contains("llama"))
+        {
+            template["system"] = "<|start_header_id|>system<|end_header_id|>\n\n{content}<|eot_id|>";
+            template["user"] = "<|start_header_id|>user<|end_header_id|>\n\n{content}<|eot_id|>";
+            template["assistant"] = "<|start_header_id|>assistant<|end_header_id|>\n\n{content}<|eot_id|>";
+        }
+        else if (alias.Contains("gemma"))
+        {
+            template["system"] = "<start_of_turn>user\nSystem instructions: {content}<end_of_turn>\n";
+            template["user"] = "<start_of_turn>user\n{content}<end_of_turn>\n";
+            template["assistant"] = "<start_of_turn>model\n{content}<end_of_turn>\n";
+        }
+        else
+        {
+            // Fallback to standard ChatML
+            template["system"] = "<|im_start|>system\n{content}\n";
+            template["user"] = "<|im_start|>user\n{content}\n";
+            template["assistant"] = "<|im_start|>assistant\n{content}\n";
+        }
+        return template;
+    }
+
+    internal void WriteInferenceModelJsonTemplate(string folderPath, string modelAlias)
     {
         try
         {
             var jsonPath = Path.Combine(folderPath, "inference_model.json");
             if (File.Exists(jsonPath)) return; // Don't overwrite if model already has one
 
+            var promptTemplate = BuildChatTemplate(modelAlias);
             var template = new
             {
                 model_type = "chat",
-                prompt_template = new Dictionary<string, string>()
+                prompt_template = promptTemplate
             };
-
-            var alias = modelAlias.ToLowerInvariant();
-            if (alias.Contains("qwen"))
-            {
-                template.prompt_template["system"] = "<|im_start|>system\n{content}在这\n";
-                template.prompt_template["user"] = "<|im_start|>user\n{content}在这\n";
-                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}在这\n";
-            }
-            else if (alias.Contains("phi"))
-            {
-                template.prompt_template["system"] = "<|system|>\n{content}<|end|>\n";
-                template.prompt_template["user"] = "<|user|>\n{content}<|end|>\n";
-                template.prompt_template["assistant"] = "<|assistant|>\n{content}<|end|>\n";
-            }
-            else if (alias.Contains("llama"))
-            {
-                template.prompt_template["system"] = "在这system在这\n\n{content}<|eot_id|>";
-                template.prompt_template["user"] = "在这user在这\n\n{content}<|eot_id|>";
-                template.prompt_template["assistant"] = "在这assistant在这\n\n{content}<|eot_id|>";
-            }
-            else if (alias.Contains("gemma"))
-            {
-                template.prompt_template["system"] = "<start_of_turn>user\nSystem instructions: {content}<end_of_turn>\n";
-                template.prompt_template["user"] = "<start_of_turn>user\n{content}<end_of_turn>\n";
-                template.prompt_template["assistant"] = "<start_of_turn>model\n{content}<end_of_turn>\n";
-            }
-            else
-            {
-                // Fallback to standard ChatML
-                template.prompt_template["system"] = "<|im_start|>system\n{content}在这\n";
-                template.prompt_template["user"] = "<|im_start|>user\n{content}在这\n";
-                template.prompt_template["assistant"] = "<|im_start|>assistant\n{content}在这\n";
-            }
 
             var jsonText = JsonSerializer.Serialize(template, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(jsonPath, jsonText);
@@ -1119,7 +1125,7 @@ public partial class CustomModelManagerWindow : Window
         {
             _downloadCts?.Dispose();
             _downloadCts = null;
-            SetUIEnabled(true);
+            Dispatcher.Invoke(() => SetUIEnabled(true));
         }
     }
 

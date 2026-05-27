@@ -195,6 +195,18 @@ public class PipelineProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_PassesCancellationToken_ToEnsureModelsLoadedAsync()
+    {
+        var cts = new CancellationTokenSource();
+        _transcriptionService.FixedResult = "raw text";
+
+        await _processor.ProcessAsync("dummy.wav", "standard", cts.Token);
+
+        Assert.True(_modelManager.LastEnsureModelsToken.HasValue);
+        Assert.Equal(cts.Token, _modelManager.LastEnsureModelsToken.Value);
+    }
+
+    [Fact]
     public async Task ProcessAsync_AppliesPersonalDictionary()
     {
         var config = new AppConfig();
@@ -232,6 +244,79 @@ public class PipelineProcessorTests
         var result = await _processor.ProcessAsync("dummy.wav", "standard");
 
         Assert.Equal("formatted", result.FinalText);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_UnknownModeId_ReturnsRawText()
+    {
+        _transcriptionService.FixedResult = "raw text";
+        _textFormatter.FixedResult = "formatted text";
+
+        var result = await _processor.ProcessAsync("dummy.wav", "nonexistent-mode");
+
+        Assert.Equal("raw text", result.FinalText);
+        Assert.Equal("raw text", result.RawText);
+        Assert.Null(result.FormattedText);
+        Assert.False(result.UsedFormattingFallback);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_NoneChatModel_SkipsFormatting()
+    {
+        var config = new AppConfig { ChatModelId = "none" };
+        await _configService.SaveAsync(config);
+
+        _transcriptionService.FixedResult = "raw text";
+        _textFormatter.FixedResult = "formatted text";
+
+        var result = await _processor.ProcessAsync("dummy.wav", "standard");
+
+        Assert.Equal("raw text", result.FinalText);
+        Assert.Equal("raw text", result.RawText);
+        Assert.Null(result.FormattedText);
+        Assert.False(result.UsedFormattingFallback);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CombinedDictionaryAndSpokenPunctuation()
+    {
+        var config = new AppConfig { SpokenPunctuationEnabled = true };
+        config.DictionaryEntries.Add(new DictionaryEntry { Word = "OpenAI", Aliases = new List<string> { "open ai" } });
+        await _configService.SaveAsync(config);
+
+        _transcriptionService.FixedResult = "we love open ai comma world period";
+
+        _textFormatter.OnCleanup = (raw, modeId) =>
+        {
+            Assert.Equal("we love OpenAI, world.", raw);
+            return Task.FromResult("formatted");
+        };
+
+        var result = await _processor.ProcessAsync("dummy.wav", "standard");
+
+        Assert.Equal("formatted", result.FinalText);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ReportsProgress()
+    {
+        _transcriptionService.FixedResult = "raw text";
+
+        var reports = new List<string>();
+        var progress = new Progress<string>(stage => reports.Add(stage));
+
+        await _processor.ProcessAsync("dummy.wav", "standard", progress: progress);
+
+        Assert.NotEmpty(reports);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_Cancellation_HonorsToken()
+    {
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => _processor.ProcessAsync("dummy.wav", "standard", cts.Token));
     }
 
     private class FakeTextFormatter : ITextFormatter

@@ -11,7 +11,7 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
 {
     private readonly IConfigService _configService;
     private readonly IFileLogger _fileLogger;
-    private WhisperFactory? _factory;
+    internal WhisperFactory? _factory;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private bool _disposed;
 
@@ -28,20 +28,7 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
         await _lock.WaitAsync(ct);
         try
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(WhisperNetTranscriptionProvider));
-            if (_factory != null) return;
-
-            var cfg = _configService.Load();
-            var modelPath = cfg.CustomWhisperModelPath;
-
-            if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
-            {
-                throw new FileNotFoundException($"Custom Whisper model file not found at: {modelPath}");
-            }
-
-            _fileLogger.Log($"Loading Whisper.net model from: {modelPath}");
-            _factory = WhisperFactory.FromPath(modelPath);
-            _fileLogger.Log("Whisper.net model loaded successfully.");
+            await EnsureLoadedUnsafeAsync(ct);
         }
         catch (Exception ex)
         {
@@ -53,6 +40,52 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
         {
             _lock.Release();
         }
+    }
+
+    private async Task EnsureLoadedUnsafeAsync(CancellationToken ct)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(WhisperNetTranscriptionProvider));
+        if (_factory != null) return;
+
+        var cfg = _configService.Load();
+        var modelPath = cfg.CustomWhisperModelPath;
+
+        if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
+        {
+            throw new FileNotFoundException($"Custom Whisper model file not found at: {modelPath}");
+        }
+
+        _fileLogger.Log($"Loading Whisper.net model from: {modelPath}");
+        _factory = CreateFactory(modelPath);
+        _fileLogger.Log("Whisper.net model loaded successfully.");
+    }
+
+    protected virtual WhisperFactory CreateFactory(string modelPath)
+        => WhisperFactory.FromPath(modelPath);
+
+    protected virtual async Task<string> ExecuteTranscriptionAsync(string wavPath, string language, CancellationToken ct)
+    {
+        var modelName = Path.GetFileName(_configService.Load().CustomWhisperModelPath);
+        _fileLogger.Log($"Starting Whisper.net transcription with model '{modelName}' for: {wavPath} (Language: {language})");
+
+        using var processor = _factory!.CreateBuilder()
+            .WithLanguage(language)
+            .Build();
+
+        using var fileStream = File.OpenRead(wavPath);
+        var sb = new StringBuilder();
+
+        await foreach (var result in processor.ProcessAsync(fileStream, ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(result.Text))
+            {
+                sb.Append(result.Text);
+            }
+        }
+
+        _fileLogger.Log($"Whisper.net transcription with model '{modelName}' completed. Length: {sb.Length}");
+        return sb.ToString();
     }
 
     public async Task UnloadAsync()
@@ -75,44 +108,31 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
 
     public async Task<string> TranscribeAsync(string wavPath, string language, CancellationToken ct)
     {
-        if (_factory == null)
-        {
-            await LoadAsync(ct);
-        }
-
-        if (_factory == null)
-        {
-            throw new InvalidOperationException("Whisper.net model is not loaded.");
-        }
-
+        await _lock.WaitAsync(ct);
         try
         {
-            var modelName = Path.GetFileName(_configService.Load().CustomWhisperModelPath);
-            _fileLogger.Log($"Starting Whisper.net transcription with model '{modelName}' for: {wavPath} (Language: {language})");
+            if (_disposed) throw new ObjectDisposedException(nameof(WhisperNetTranscriptionProvider));
 
-            using var processor = _factory.CreateBuilder()
-                .WithLanguage(language)
-                .Build();
-
-            using var fileStream = File.OpenRead(wavPath);
-            var sb = new StringBuilder();
-
-            await foreach (var result in processor.ProcessAsync(fileStream, ct))
+            if (_factory == null)
             {
-                ct.ThrowIfCancellationRequested();
-                if (!string.IsNullOrWhiteSpace(result.Text))
-                {
-                    sb.Append(result.Text);
-                }
+                await EnsureLoadedUnsafeAsync(ct);
             }
 
-            _fileLogger.Log($"Whisper.net transcription with model '{modelName}' completed. Length: {sb.Length}");
-            return sb.ToString();
+            if (_factory == null)
+            {
+                throw new InvalidOperationException("Whisper.net model is not loaded.");
+            }
+
+            return await ExecuteTranscriptionAsync(wavPath, language, ct);
         }
         catch (Exception ex)
         {
             _fileLogger.LogException(ex, "Whisper.net transcription failed");
             throw;
+        }
+        finally
+        {
+            _lock.Release();
         }
     }
 
@@ -120,8 +140,16 @@ public class WhisperNetTranscriptionProvider : ITranscriptionProvider, IDisposab
     {
         if (_disposed) return;
         _disposed = true;
-        _factory?.Dispose();
-        _factory = null;
+        _lock.Wait();
+        try
+        {
+            _factory?.Dispose();
+            _factory = null;
+        }
+        finally
+        {
+            _lock.Release();
+        }
         _lock.Dispose();
     }
 }

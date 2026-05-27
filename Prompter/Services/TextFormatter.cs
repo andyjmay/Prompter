@@ -139,7 +139,7 @@ public class TextFormatter : ITextFormatter
             return rawText;
 
         var rawSet = new HashSet<string>(rawWords.Select(w => w.Trim(',', '.', '!', '?', ';', ':').ToLowerInvariant()));
-        var overlap = resultWords.Count(w => rawSet.Contains(w.Trim(',', '.', '!', '?', ';', ':').ToLowerInvariant()));
+        var overlap = resultWords.Count(w => IsCloseMatch(w, rawSet));
         if (overlap == 0 && rawWords.Length > 0)
             return rawText;
 
@@ -204,6 +204,72 @@ public class TextFormatter : ITextFormatter
         }
 
         return result;
+    }
+
+    internal static bool IsCloseMatch(string word, HashSet<string> rawSet)
+    {
+        var clean = word.Trim(',', '.', '!', '?', ';', ':').ToLowerInvariant();
+        if (rawSet.Contains(clean))
+            return true;
+
+        foreach (var rawWord in rawSet)
+        {
+            if (HasCommonSubstring(clean, rawWord, 3))
+                return true;
+            if (LevenshteinDistance(clean, rawWord) <= 2)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool HasCommonSubstring(string a, string b, int minLength)
+    {
+        if (a.Length < minLength || b.Length < minLength)
+            return false;
+
+        for (int i = 0; i <= a.Length - minLength; i++)
+        {
+            for (int j = 0; j <= b.Length - minLength; j++)
+            {
+                bool match = true;
+                for (int k = 0; k < minLength; k++)
+                {
+                    if (a[i + k] != b[j + k])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static int LevenshteinDistance(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
+        if (string.IsNullOrEmpty(b)) return a.Length;
+
+        int[] previous = new int[b.Length + 1];
+        int[] current = new int[b.Length + 1];
+
+        for (int j = 0; j <= b.Length; j++)
+            previous[j] = j;
+
+        for (int i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+            for (int j = 1; j <= b.Length; j++)
+            {
+                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                current[j] = Math.Min(Math.Min(current[j - 1] + 1, previous[j] + 1), previous[j - 1] + cost);
+            }
+            Array.Copy(current, previous, b.Length + 1);
+        }
+
+        return previous[b.Length];
     }
 
     internal static string StripOutputWrappers(string text, string rawText)
@@ -372,12 +438,13 @@ public class TextFormatter : ITextFormatter
         }
 
         // Bug fix: if the very last word didn't match, resultIdx never moved, making unmatchedCount == 0.
-        // In that case we still want to examine the trailing words for artifacts.
+        // In that case we still want to examine the trailing words for artifacts, but only the extra
+        // words beyond the raw text length to avoid slicing into the entire short result.
         int unmatchedCount;
         if (matchedTrailingWords == 0)
         {
-            unmatchedCount = Math.Min(6, resultWords.Length);
-            resultIdx = resultWords.Length - unmatchedCount - 1;
+            unmatchedCount = Math.Min(6, Math.Max(0, resultWords.Length - rawWords.Length));
+            resultIdx = Math.Max(-1, resultWords.Length - unmatchedCount - 1);
         }
         else
         {
@@ -401,7 +468,7 @@ public class TextFormatter : ITextFormatter
                 // Strip the trailing artifact from the end of the result string
                 var searchFragment = string.Join(" ", trailingWords);
                 var trimmedResult = result.TrimEnd();
-                if (trimmedResult.EndsWith(searchFragment, StringComparison.OrdinalIgnoreCase))
+                if (EndsWithIgnoringTrailingPunctuation(trimmedResult, searchFragment))
                 {
                     result = trimmedResult[..^searchFragment.Length].TrimEnd();
                 }
@@ -409,6 +476,22 @@ public class TextFormatter : ITextFormatter
         }
 
         return result;
+    }
+
+    private static readonly char[] TrailingPunctuationChars = new[] { '.', ',', '!', '?', ';', ':', '…', '`', '*', '"', '\'', '(', ')' };
+
+    private static bool EndsWithIgnoringTrailingPunctuation(string text, string fragment)
+    {
+        if (text.Length < fragment.Length)
+            return false;
+
+        var strippedText = text.TrimEnd(TrailingPunctuationChars);
+        var strippedFragment = fragment.TrimEnd(TrailingPunctuationChars);
+
+        if (strippedText.Length < strippedFragment.Length)
+            return false;
+
+        return strippedText.EndsWith(strippedFragment, StringComparison.OrdinalIgnoreCase);
     }
 
     private static readonly Regex SpecialTokenRegex = new(

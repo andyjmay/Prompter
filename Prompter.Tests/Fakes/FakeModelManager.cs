@@ -20,7 +20,13 @@ public class FakeModelManager : IModelManager
 
     public Task InitializeAsync(int idleTtlMinutes) => Task.CompletedTask;
 
-    public Task EnsureModelsLoadedAsync(string? targetModeId = null) => Task.CompletedTask;
+    public CancellationToken? LastEnsureModelsToken { get; private set; }
+    public Task EnsureModelsLoadedAsync(string? targetModeId = null, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        LastEnsureModelsToken = ct;
+        return Task.CompletedTask;
+    }
 
     public Task EnsureChatModelLoadedAsync(string alias) => Task.CompletedTask;
 

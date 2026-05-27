@@ -4,7 +4,7 @@ using System.Windows.Input;
 
 namespace Prompter.Services;
 
-public class HotkeyService : IHotkeyService
+public class HotkeyService : IHotkeyService, IDisposable
 {
     private readonly IFileLogger _logger;
     private IntPtr _hookId = IntPtr.Zero;
@@ -92,6 +92,8 @@ public class HotkeyService : IHotkeyService
             bool isKeyUp = wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP;
             bool isInjected = (kbd.flags & LLKHF_INJECTED) != 0;
 
+            bool shouldInvokeRecordingStarted = false;
+
             lock (_stateLock)
             {
                 if (isKeyDown && !isInjected)
@@ -111,19 +113,27 @@ public class HotkeyService : IHotkeyService
                         _logger.Log($"Hotkey detected (vk={vk}) — starting recording.");
                         _isRecording = true;
                         _recordingStartTime = DateTime.Now;
-                        try
-                        {
-                            RecordingStarted?.Invoke();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogException(ex, "RecordingStarted handler threw");
-                            _isRecording = false;
-                            return CallNextHookEx(_hookId, nCode, wParam, lParam);
-                        }
-                        StartReleasePolling();
+                        shouldInvokeRecordingStarted = true;
                     }
                 }
+            }
+
+            if (shouldInvokeRecordingStarted)
+            {
+                try
+                {
+                    RecordingStarted?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogException(ex, "RecordingStarted handler threw");
+                    lock (_stateLock)
+                    {
+                        _isRecording = false;
+                    }
+                    return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                }
+                StartReleasePolling();
             }
         }
         return CallNextHookEx(_hookId, nCode, wParam, lParam);
@@ -141,16 +151,19 @@ public class HotkeyService : IHotkeyService
 
     private void StartReleasePolling()
     {
-        _pollCts?.Cancel();
-        _pollCts?.Dispose();
-        _pollCts = new CancellationTokenSource();
+        var oldCts = _pollCts;
+        var oldTask = _pollTask;
+
+        var newCts = new CancellationTokenSource();
+        _pollCts = newCts;
+        var token = newCts.Token;
         _pollTask = Task.Run(async () =>
         {
             try
             {
-                while (!_pollCts.Token.IsCancellationRequested)
+                while (!token.IsCancellationRequested)
                 {
-                    await Task.Delay(50, _pollCts.Token);
+                    await Task.Delay(50, token);
 
                     bool allStillPressed = true;
 
@@ -177,7 +190,7 @@ public class HotkeyService : IHotkeyService
                         {
                             _isRecording = false;
                         }
-                        _pollCts.Cancel();
+                        newCts.Cancel();
                         _logger.Log("Hotkey released — stopping recording.");
                         RecordingStopped?.Invoke();
                         break;
@@ -188,33 +201,76 @@ public class HotkeyService : IHotkeyService
             {
                 // expected
             }
-        }, _pollCts.Token);
+        }, token);
+
+        if (oldTask != null)
+        {
+            oldCts?.Cancel();
+            _ = DisposeOldPollingTaskAsync(oldTask, oldCts);
+        }
+    }
+
+    private async Task DisposeOldPollingTaskAsync(Task? task, CancellationTokenSource? cts)
+    {
+        if (task == null) return;
+        try
+        {
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+            // expected
+        }
+        try
+        {
+            cts?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // already disposed
+        }
     }
 
     public void Unregister()
     {
-        _pollCts?.Cancel();
-        _pollCts?.Dispose();
+        var oldCts = _pollCts;
+        var oldTask = _pollTask;
         _pollCts = null;
+        _pollTask = null;
+
         lock (_stateLock)
         {
             _isRecording = false;
             _pressedVks.Clear();
         }
+
         if (_hookId != IntPtr.Zero)
         {
             UnhookWindowsHookEx(_hookId);
             _hookId = IntPtr.Zero;
         }
+
         _logger.Log("Low-level keyboard hook unregistered.");
+
+        if (oldTask != null)
+        {
+            oldCts?.Cancel();
+            _ = DisposeOldPollingTaskAsync(oldTask, oldCts);
+        }
+    }
+
+    public void Dispose()
+    {
+        Unregister();
     }
 
     public async ValueTask DisposeAsync()
     {
+        var oldTask = _pollTask;
         Unregister();
-        if (_pollTask != null)
+        if (oldTask != null)
         {
-            try { await _pollTask; } catch (OperationCanceledException) { }
+            try { await oldTask; } catch (OperationCanceledException) { }
         }
         _proc = null;
     }

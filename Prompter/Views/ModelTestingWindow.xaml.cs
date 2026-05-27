@@ -226,7 +226,9 @@ public partial class ModelTestingWindow : Window
                 }
             }
             
-            var currentChat = _config.UseCustomChat ? _config.CustomChatModelPath : _config.ChatModelId;
+            var currentChat = _config.UseCustomChat && !string.IsNullOrEmpty(_config.CustomChatModelPath)
+                ? _config.CustomChatModelPath
+                : _config.ChatModelId;
             var cDisp = _chatDisplayNameToAlias.FirstOrDefault(x => x.Value == currentChat || Path.GetFileName(x.Value) == Path.GetFileName(currentChat)).Key;
             if (cDisp != null) ChatModelComboBox.SelectedItem = cDisp;
             else if (ChatModelComboBox.Items.Count > 0) ChatModelComboBox.SelectedIndex = 0;
@@ -256,67 +258,81 @@ public partial class ModelTestingWindow : Window
 
     private async void WhisperModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var selected = WhisperModelComboBox.SelectedItem as string;
-        if (selected == null) return;
-        var alias = _whisperDisplayNameToAlias.TryGetValue(selected, out var val) ? val : selected;
+        try
+        {
+            var selected = WhisperModelComboBox.SelectedItem as string;
+            if (selected == null) return;
+            var alias = _whisperDisplayNameToAlias.TryGetValue(selected, out var val) ? val : selected;
 
-        bool isCustom = selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
-        if (isCustom)
-        {
-            WhisperModelStatus.Text = "Custom model file (Whisper.net). Ready.";
-            DownloadWhisperButton.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
-            if (isCached)
+            bool isCustom = selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
+            if (isCustom)
             {
-                WhisperModelStatus.Text = "Cached locally. Ready.";
+                WhisperModelStatus.Text = "Custom model file (Whisper.net). Ready.";
                 DownloadWhisperButton.Visibility = Visibility.Collapsed;
             }
             else
             {
-                WhisperModelStatus.Text = "Not cached. Download required.";
-                DownloadWhisperButton.Visibility = Visibility.Visible;
-                DownloadWhisperButton.IsEnabled = true;
+                bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
+                if (isCached)
+                {
+                    WhisperModelStatus.Text = "Cached locally. Ready.";
+                    DownloadWhisperButton.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    WhisperModelStatus.Text = "Not cached. Download required.";
+                    DownloadWhisperButton.Visibility = Visibility.Visible;
+                    DownloadWhisperButton.IsEnabled = true;
+                }
             }
+            UpdateWizardSteps();
         }
-        UpdateWizardSteps();
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "WhisperModelComboBox_SelectionChanged failed");
+        }
     }
 
     private async void ChatModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var selected = ChatModelComboBox.SelectedItem as string;
-        if (selected == null) return;
-        var alias = _chatDisplayNameToAlias.TryGetValue(selected, out var val) ? val : selected;
+        try
+        {
+            var selected = ChatModelComboBox.SelectedItem as string;
+            if (selected == null) return;
+            var alias = _chatDisplayNameToAlias.TryGetValue(selected, out var val) ? val : selected;
 
-        bool isCustom = selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
-        if (alias == "none")
-        {
-            ChatModelStatus.Text = "No correction model selected (Skip formatting).";
-            DownloadChatButton.Visibility = Visibility.Collapsed;
-        }
-        else if (isCustom)
-        {
-            ChatModelStatus.Text = "Custom GGUF model file (LlamaSharp). Ready.";
-            DownloadChatButton.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
-            if (isCached)
+            bool isCustom = selected.StartsWith("Custom:", StringComparison.OrdinalIgnoreCase);
+            if (alias == "none")
             {
-                ChatModelStatus.Text = "Cached locally (DirectML GPU/NPU active). Ready.";
+                ChatModelStatus.Text = "No correction model selected (Skip formatting).";
+                DownloadChatButton.Visibility = Visibility.Collapsed;
+            }
+            else if (isCustom)
+            {
+                ChatModelStatus.Text = "Custom GGUF model file (LlamaSharp). Ready.";
                 DownloadChatButton.Visibility = Visibility.Collapsed;
             }
             else
             {
-                ChatModelStatus.Text = "Not cached. Download required.";
-                DownloadChatButton.Visibility = Visibility.Visible;
-                DownloadChatButton.IsEnabled = true;
+                bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
+                if (isCached)
+                {
+                    ChatModelStatus.Text = "Cached locally (DirectML GPU/NPU active). Ready.";
+                    DownloadChatButton.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    ChatModelStatus.Text = "Not cached. Download required.";
+                    DownloadChatButton.Visibility = Visibility.Visible;
+                    DownloadChatButton.IsEnabled = true;
+                }
             }
+            UpdateWizardSteps();
         }
-        UpdateWizardSteps();
+        catch (Exception ex)
+        {
+            _logger.LogException(ex, "ChatModelComboBox_SelectionChanged failed");
+        }
     }
 
     private void OnModelDownloadProgress(string alias, float progress)
@@ -653,8 +669,8 @@ public partial class ModelTestingWindow : Window
                     var stepConfig = _configService.Load() with
                     {
                         UseCustomWhisper = whisperIsCustom,
-                        CustomWhisperModelPath = whisperIsCustom ? whisperAlias : "",
-                        WhisperModelId = whisperIsCustom ? "" : whisperAlias,
+                        CustomWhisperModelPath = whisperIsCustom ? (whisperAlias ?? "") : "",
+                        WhisperModelId = whisperIsCustom ? "" : (whisperAlias ?? ""),
                         
                         UseCustomChat = chatIsCustom,
                         CustomChatModelPath = chatIsCustom ? chatAlias : "",
@@ -715,6 +731,7 @@ public partial class ModelTestingWindow : Window
                         {
                             ModelName = chatSel.Replace("Custom: ", ""),
                             Alias = chatAlias,
+                            WhisperAlias = whisperAlias ?? "",
                             LoadSec = chatLoadSec,
                             RunSec = chatRunSec,
                             TotalSec = totalSec,
@@ -1436,10 +1453,10 @@ public partial class ModelTestingWindow : Window
             FormattedOutputTextBox.Text = item.FormattedText;
             SystemPromptTextBox.Text = item.SystemPrompt;
 
-            var wDisp = _whisperDisplayNameToAlias.FirstOrDefault(x => x.Value == item.Alias || Path.GetFileName(x.Value) == Path.GetFileName(item.Alias)).Key;
+            var wDisp = ResolveDisplayNameForAlias(_whisperDisplayNameToAlias, item.WhisperAlias);
             if (wDisp != null) WhisperModelComboBox.SelectedItem = wDisp;
 
-            var cDisp = _chatDisplayNameToAlias.FirstOrDefault(x => x.Value == item.Alias || Path.GetFileName(x.Value) == Path.GetFileName(item.Alias)).Key;
+            var cDisp = ResolveDisplayNameForAlias(_chatDisplayNameToAlias, item.Alias);
             if (cDisp != null) ChatModelComboBox.SelectedItem = cDisp;
 
             var mode = _config.Modes.FirstOrDefault(m => m.Id.Equals(item.ModeId, StringComparison.OrdinalIgnoreCase));
@@ -1466,6 +1483,11 @@ public partial class ModelTestingWindow : Window
                 ((TabItem)tabControl.Items[0]).IsSelected = true;
             }
         }
+    }
+
+    internal static string? ResolveDisplayNameForAlias(Dictionary<string, string> displayNameToAlias, string alias)
+    {
+        return displayNameToAlias.FirstOrDefault(x => x.Value == alias || Path.GetFileName(x.Value) == Path.GetFileName(alias)).Key;
     }
 }
 
@@ -1500,26 +1522,27 @@ public class ChatModelCheckItem : System.ComponentModel.INotifyPropertyChanged
     protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
 }
 
-public class ComparisonGridItem
-{
-    public string ModelName { get; set; } = "";
-    public string Alias { get; set; } = "";
-    public double LoadSec { get; set; }
-    public double RunSec { get; set; }
-    public double TotalSec { get; set; }
-    public double Speed { get; set; }
-    public double Similarity { get; set; }
-    public string FormattedText { get; set; } = "";
-    public string RawText { get; set; } = "";
-    public double WhisperLoadSec { get; set; }
-    public double WhisperRunSec { get; set; }
-    public string SystemPrompt { get; set; } = "";
-    public string ModeId { get; set; } = "";
+    public class ComparisonGridItem
+    {
+        public string ModelName { get; set; } = "";
+        public string Alias { get; set; } = "";
+        public string WhisperAlias { get; set; } = "";
+        public double LoadSec { get; set; }
+        public double RunSec { get; set; }
+        public double TotalSec { get; set; }
+        public double Speed { get; set; }
+        public double Similarity { get; set; }
+        public string FormattedText { get; set; } = "";
+        public string RawText { get; set; } = "";
+        public double WhisperLoadSec { get; set; }
+        public double WhisperRunSec { get; set; }
+        public string SystemPrompt { get; set; } = "";
+        public string ModeId { get; set; } = "";
 
-    public string LoadSecLabel => LoadSec > 0 ? $"{LoadSec:F2}s" : "0.00s";
-    public string RunSecLabel => RunSec > 0 ? $"{RunSec:F2}s" : "0.00s";
-    public string TotalSecLabel => TotalSec > 0 ? $"{TotalSec:F2}s" : "0.00s";
-    public string SpeedLabel => Speed > 0 ? $"{Speed:F1} c/s" : "N/A";
-    public string SimilarityLabel => $"{Similarity:F1}%";
-}
+        public string LoadSecLabel => LoadSec > 0 ? $"{LoadSec:F2}s" : "0.00s";
+        public string RunSecLabel => RunSec > 0 ? $"{RunSec:F2}s" : "0.00s";
+        public string TotalSecLabel => TotalSec > 0 ? $"{TotalSec:F2}s" : "0.00s";
+        public string SpeedLabel => Speed > 0 ? $"{Speed:F1} c/s" : "N/A";
+        public string SimilarityLabel => $"{Similarity:F1}%";
+    }
 

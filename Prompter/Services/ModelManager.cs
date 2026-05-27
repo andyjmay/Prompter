@@ -21,6 +21,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
     private string? _loadedCustomChatPath;
     private readonly Dictionary<string, DateTime> _lastFailureByAlias = new();
     private static readonly TimeSpan RetryFailedAfter = TimeSpan.FromMinutes(30);
+    internal long _inferenceCount;
 
     private bool IsRecentFailure(string alias)
     {
@@ -89,9 +90,9 @@ public class ModelManager : IModelManager, IAsyncDisposable
         _idleTimer.Start();
     }
 
-    public async Task EnsureModelsLoadedAsync(string? targetModeId = null)
+    public async Task EnsureModelsLoadedAsync(string? targetModeId = null, CancellationToken ct = default)
     {
-        await _loadSemaphore.WaitAsync();
+        await _loadSemaphore.WaitAsync(ct);
         try
         {
             if (_disposed) throw new ObjectDisposedException(nameof(ModelManager));
@@ -492,14 +493,14 @@ public class ModelManager : IModelManager, IAsyncDisposable
         if (_customChatClient != null)
         {
             UpdateLastUsed();
-            return _customChatClient;
+            return new InferenceTrackingChatClient(_customChatClient, this);
         }
 
         if (_chatModel == null || !_chatLoaded)
             throw new InvalidOperationException("Chat model not loaded");
 
         UpdateLastUsed();
-        return new FoundryChatClient(await _chatModel.GetChatClientAsync());
+        return new InferenceTrackingChatClient(new FoundryChatClient(await _chatModel.GetChatClientAsync()), this);
     }
 
     public async Task<OpenAIAudioClient> GetAudioClientAsync()
@@ -509,11 +510,12 @@ public class ModelManager : IModelManager, IAsyncDisposable
         return await _whisperModel.GetAudioClientAsync();
     }
 
-    private async Task CheckIdleAsync(int ttlMinutes, CancellationToken ct)
+    internal async Task CheckIdleAsync(int ttlMinutes, CancellationToken ct)
     {
         if (_whisperModel == null && _chatModel == null && !_whisperNetProvider.IsLoaded && _customChatClient == null) return;
         if (GetIdleMinutes() < ttlMinutes) return;
         if (ct.IsCancellationRequested) return;
+        if (Interlocked.Read(ref _inferenceCount) > 0) return;
 
         await _loadSemaphore.WaitAsync(ct);
         try
@@ -521,6 +523,7 @@ public class ModelManager : IModelManager, IAsyncDisposable
             if (_whisperModel == null && _chatModel == null && !_whisperNetProvider.IsLoaded && _customChatClient == null) return;
             if (GetIdleMinutes() < ttlMinutes) return;
             if (ct.IsCancellationRequested) return;
+            if (Interlocked.Read(ref _inferenceCount) > 0) return;
 
             _fileLogger.Log("Models idle — unloading.");
             if (_customChatClient != null) { await _customChatClient.DisposeAsync(); _customChatClient = null; _loadedCustomChatPath = null; }
@@ -536,6 +539,33 @@ public class ModelManager : IModelManager, IAsyncDisposable
         {
             _loadSemaphore.Release();
         }
+    }
+
+    private sealed class InferenceTrackingChatClient : IChatClient
+    {
+        private readonly IChatClient _inner;
+        private readonly ModelManager _manager;
+
+        public InferenceTrackingChatClient(IChatClient inner, ModelManager manager)
+        {
+            _inner = inner;
+            _manager = manager;
+        }
+
+        public async Task<string?> CompleteAsync(List<ChatMessage> messages, float temperature, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _manager._inferenceCount);
+            try
+            {
+                return await _inner.CompleteAsync(messages, temperature, ct);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _manager._inferenceCount);
+            }
+        }
+
+        public ValueTask DisposeAsync() => _inner.DisposeAsync();
     }
 
     public async ValueTask DisposeAsync()

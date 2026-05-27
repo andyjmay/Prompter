@@ -87,13 +87,13 @@ public class ModelCatalogService : IModelCatalogService
         }
     }
 
-    public async Task<bool> IsModelInCatalogAsync(string alias)
+    public async Task<bool> IsModelInCatalogAsync(string alias, CancellationToken ct = default)
     {
         try
         {
             await _accessor.InitializationCompleted;
             var catalog = await _accessor.Manager.GetCatalogAsync();
-            var model = await catalog.GetModelAsync(alias);
+            var model = await catalog.GetModelAsync(alias, ct);
             return model != null;
         }
         catch

@@ -44,26 +44,18 @@ public class FoundryLocalManagerAccessor : IFoundryLocalManagerAccessor
             var factory = LoggerFactory.Create(b => b.AddProvider(new FileLogProvider(_fileLogger)));
             var logger = factory.CreateLogger<FoundryLocalManagerAccessor>();
 
-            await FoundryLocalManager.CreateAsync(config, logger);
-            _manager = FoundryLocalManager.Instance;
-
-            if (_manager == null)
-                throw new InvalidOperationException("FoundryLocalManager.Instance is null after CreateAsync.");
-
-            _fileLogger.Log("Foundry Local manager initialized.");
-
             try
             {
-                await _manager.DownloadAndRegisterEpsAsync((ep, pct) => { });
+                await InitializeManagerAsync(config, logger);
+                _initialized = true;
+                _initTcs.TrySetResult();
             }
             catch (Exception ex)
             {
-                _fileLogger.LogException(ex, "Execution provider registration failed");
+                _fileLogger.LogException(ex, "FoundryLocalManager initialization failed");
+                _initTcs.TrySetException(ex);
                 throw;
             }
-
-            _initialized = true;
-            _initTcs.SetResult();
         }
         finally
         {
@@ -71,9 +63,32 @@ public class FoundryLocalManagerAccessor : IFoundryLocalManagerAccessor
         }
     }
 
+    protected virtual async Task InitializeManagerAsync(Configuration config, ILogger logger)
+    {
+        await FoundryLocalManager.CreateAsync(config, logger);
+        _manager = FoundryLocalManager.Instance;
+
+        if (_manager == null)
+            throw new InvalidOperationException("FoundryLocalManager.Instance is null after CreateAsync.");
+
+        _fileLogger.Log("Foundry Local manager initialized.");
+
+        try
+        {
+            await _manager.DownloadAndRegisterEpsAsync((ep, pct) => { });
+        }
+        catch (Exception ex)
+        {
+            _fileLogger.LogException(ex, "Execution provider registration failed");
+            throw;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
-        _initLock.Dispose();
+        _initialized = false;
+        // Do not dispose _initLock here; it may be held by a concurrent InitializeAsync.
+        // SemaphoreSlim can be safely left undisposed during app teardown.
         if (_manager != null)
         {
             _manager.Dispose();

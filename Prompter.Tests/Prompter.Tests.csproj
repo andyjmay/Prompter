@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Prompter\Prompter.csproj" />
+    <ProjectReference Include="..\Prompter.Eval\Prompter.Eval.csproj" />
   </ItemGroup>
 
 

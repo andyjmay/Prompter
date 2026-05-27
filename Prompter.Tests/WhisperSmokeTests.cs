@@ -78,7 +78,7 @@ public class WhisperSmokeTests : IClassFixture<DispatcherFixture>, IAsyncDisposa
         Assert.Contains("test", text, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string EnsureWhisperModel()
+    internal static string EnsureWhisperModel()
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -87,8 +87,17 @@ public class WhisperSmokeTests : IClassFixture<DispatcherFixture>, IAsyncDisposa
             "models");
         var path = System.IO.Path.Combine(dir, "ggml-tiny.bin");
 
+        const long minSizeBytes = 30_000_000; // ~30 MB minimum for ggml-tiny
+
         if (System.IO.File.Exists(path))
-            return path;
+        {
+            var info = new System.IO.FileInfo(path);
+            if (info.Length > 0 && info.Length >= minSizeBytes)
+                return path;
+
+            // File is corrupt/too small; delete and re-download
+            try { System.IO.File.Delete(path); } catch { }
+        }
 
         System.IO.Directory.CreateDirectory(dir);
         using var client = new HttpClient();
@@ -96,6 +105,16 @@ public class WhisperSmokeTests : IClassFixture<DispatcherFixture>, IAsyncDisposa
         var bytes = client.GetByteArrayAsync(url).GetAwaiter().GetResult();
         System.IO.File.WriteAllBytes(path, bytes);
         return path;
+    }
+
+    [Fact]
+    public void EnsureWhisperModel_ValidatesFileSize()
+    {
+        var path = EnsureWhisperModel();
+        var info = new FileInfo(path);
+        Assert.True(info.Exists);
+        Assert.True(info.Length > 0);
+        Assert.True(info.Length >= 30_000_000);
     }
 
     private static void Replace<TService>(IServiceCollection services, TService instance) where TService : class

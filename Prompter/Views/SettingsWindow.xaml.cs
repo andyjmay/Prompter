@@ -40,6 +40,7 @@ public partial class SettingsWindow : Window
     private bool _populatingChatModels;
     private bool _populatingWhisperModels;
     private List<LogEntry> _allLogEntries = new();
+    private CancellationTokenSource? _settingsCts;
 
     public SettingsWindow(
         IConfigService configService,
@@ -100,12 +101,13 @@ public partial class SettingsWindow : Window
         RefreshDictionaryList();
         RefreshSnippetsList();
 
-        _ = PopulateChatModelComboBoxAsync();
-        _ = PopulateWhisperModelComboBoxAsync();
-        _ = RefreshModelsDashboardAsync();
+        _settingsCts = new CancellationTokenSource();
+        _ = PopulateChatModelComboBoxAsync(_settingsCts.Token);
+        _ = PopulateWhisperModelComboBoxAsync(_settingsCts.Token);
+        _ = RefreshModelsDashboardAsync(_settingsCts.Token);
         DetectGpuStatus();
         InitializeAppearanceControls();
-        _ = LoadLogsAsync();
+        _ = LoadLogsAsync(_settingsCts.Token);
     }
 
     private void InitializeAppearanceControls()
@@ -742,7 +744,7 @@ public partial class SettingsWindow : Window
         RefreshSnippetsList();
     }
 
-    private async Task PopulateChatModelComboBoxAsync()
+    private async Task PopulateChatModelComboBoxAsync(CancellationToken ct)
     {
         _populatingChatModels = true;
         ChatModelComboBox.Items.Clear();
@@ -755,7 +757,8 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var models = await _modelCatalog.ListAvailableChatModelsAsync();
+            var models = await _modelCatalog.ListAvailableChatModelsAsync(ct);
+            if (ct.IsCancellationRequested) return;
 
             ChatModelComboBox.Items.Clear();
             _displayNameToAlias["None"] = "none";
@@ -821,6 +824,7 @@ public partial class SettingsWindow : Window
                     ChatModelComboBox.SelectedIndex = 0;
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogException(ex, "Failed to load chat models from Foundry catalog");
@@ -836,7 +840,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async Task PopulateWhisperModelComboBoxAsync()
+    private async Task PopulateWhisperModelComboBoxAsync(CancellationToken ct)
     {
         _populatingWhisperModels = true;
         WhisperModelComboBox.Items.Clear();
@@ -848,7 +852,8 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var models = await _modelCatalog.ListAvailableWhisperModelsAsync();
+            var models = await _modelCatalog.ListAvailableWhisperModelsAsync(ct);
+            if (ct.IsCancellationRequested) return;
 
             WhisperModelComboBox.Items.Clear();
             foreach (var (alias, displayName) in models)
@@ -900,6 +905,7 @@ public partial class SettingsWindow : Window
                     WhisperModelComboBox.SelectedIndex = 0;
             }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogException(ex, "Failed to load Whisper models from catalog");
@@ -915,11 +921,12 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async Task RefreshModelsDashboardAsync()
+    private async Task RefreshModelsDashboardAsync(CancellationToken ct)
     {
         try
         {
-            var statusList = await _modelCatalog.GetModelStatusListAsync();
+            var statusList = await _modelCatalog.GetModelStatusListAsync(ct);
+            if (ct.IsCancellationRequested) return;
 
             // Augment with loaded state from ModelManager
             var chatLoaded = _modelManager.LoadedChatModelAlias;
@@ -933,6 +940,7 @@ public partial class SettingsWindow : Window
             ModelsListView.ItemsSource = augmented;
             ModelsEmptyText.Visibility = augmented.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogException(ex, "RefreshModelsDashboardAsync");
@@ -977,7 +985,7 @@ public partial class SettingsWindow : Window
             DownloadModelButton.Content = originalText;
             DownloadModelButton.IsEnabled = true;
             UnloadModelButton.IsEnabled = true;
-            _ = RefreshModelsDashboardAsync();
+            _ = RefreshModelsDashboardAsync(CancellationToken.None);
         }
     }
 
@@ -1009,7 +1017,7 @@ public partial class SettingsWindow : Window
         }
         finally
         {
-            _ = RefreshModelsDashboardAsync();
+            _ = RefreshModelsDashboardAsync(CancellationToken.None);
         }
     }
 
@@ -1069,9 +1077,9 @@ public partial class SettingsWindow : Window
             Owner = this
         };
         managerWin.ShowDialog();
-        _ = PopulateWhisperModelComboBoxAsync();
-        _ = PopulateChatModelComboBoxAsync();
-        _ = RefreshModelsDashboardAsync();
+        _ = PopulateWhisperModelComboBoxAsync(CancellationToken.None);
+        _ = PopulateChatModelComboBoxAsync(CancellationToken.None);
+        _ = RefreshModelsDashboardAsync(CancellationToken.None);
     }
 
     private async Task DownloadModelOnDemandAsync(string? alias, TextBlock statusTextBlock)
@@ -1083,22 +1091,35 @@ public partial class SettingsWindow : Window
             bool isCached = await _modelCatalog.IsModelCachedAsync(alias);
             if (isCached)
             {
-                Dispatcher.Invoke(() => statusTextBlock.Text = "Cached ✓");
+                Dispatcher.Invoke(() =>
+                {
+                    if (!IsLoaded) return;
+                    statusTextBlock.Text = "Cached ✓";
+                });
                 return;
             }
 
-            Dispatcher.Invoke(() => statusTextBlock.Text = "Downloading…");
+            Dispatcher.Invoke(() =>
+            {
+                if (!IsLoaded) return;
+                statusTextBlock.Text = "Downloading…";
+            });
             await _modelManager.DownloadModelAsync(alias);
             Dispatcher.Invoke(() =>
             {
+                if (!IsLoaded) return;
                 statusTextBlock.Text = "Downloaded ✓";
-                _ = RefreshModelsDashboardAsync();
+                _ = RefreshModelsDashboardAsync(_settingsCts?.Token ?? CancellationToken.None);
             });
         }
         catch (Exception ex)
         {
             _logger.LogException(ex, $"On-demand download failed for {alias}");
-            Dispatcher.Invoke(() => statusTextBlock.Text = "Download failed");
+            Dispatcher.Invoke(() =>
+            {
+                if (!IsLoaded) return;
+                statusTextBlock.Text = "Download failed";
+            });
         }
     }
 
@@ -1643,6 +1664,7 @@ public partial class SettingsWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        _settingsCts?.Cancel();
         base.OnClosing(e);
         _captureTimer?.Stop();
         _captureTimer = null;
@@ -1652,15 +1674,17 @@ public partial class SettingsWindow : Window
         _previewToast = null;
     }
 
-    private async Task LoadLogsAsync()
+    private async Task LoadLogsAsync(CancellationToken ct)
     {
         try
         {
-            var entries = await Task.Run(() => _logger.GetRecentLogs(maxEntries: 5000).ToList());
+            var entries = await Task.Run(() => _logger.GetRecentLogs(maxEntries: 5000).ToList(), ct);
+            if (ct.IsCancellationRequested) return;
             _allLogEntries = entries;
             LogsListView.ItemsSource = _allLogEntries;
             LogsEmptyText.Visibility = _allLogEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _logger.LogException(ex, "LoadLogsAsync");
@@ -1775,9 +1799,9 @@ public partial class SettingsWindow : Window
 
         RefreshModesList();
 
-        _ = PopulateChatModelComboBoxAsync();
-        _ = PopulateWhisperModelComboBoxAsync();
-        _ = RefreshModelsDashboardAsync();
+        _ = PopulateChatModelComboBoxAsync(_settingsCts?.Token ?? CancellationToken.None);
+        _ = PopulateWhisperModelComboBoxAsync(_settingsCts?.Token ?? CancellationToken.None);
+        _ = RefreshModelsDashboardAsync(_settingsCts?.Token ?? CancellationToken.None);
     }
 }
 

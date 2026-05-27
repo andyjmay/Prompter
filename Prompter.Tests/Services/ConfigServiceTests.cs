@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Prompter.Models;
 using Prompter.Services;
 using Xunit;
@@ -76,7 +78,7 @@ public class ConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void Load_V1Config_MigratesToV7()
+    public void Load_V1Config_MigratesToV12()
     {
         var v1Json = """
         {
@@ -98,7 +100,7 @@ public class ConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void Load_V3Config_MigratesToV7()
+    public void Load_V3Config_MigratesToV12()
     {
         var v3Json = """
         {
@@ -119,7 +121,7 @@ public class ConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void Load_V4Config_MigratesToV7()
+    public void Load_V4Config_MigratesToV12()
     {
         var v4Json = """
         {
@@ -137,7 +139,7 @@ public class ConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void Load_V5Config_MigratesToV7()
+    public void Load_V5Config_MigratesToV12()
     {
         var v5Json = """
         {
@@ -155,7 +157,7 @@ public class ConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void Load_V6Config_MigratesToV7()
+    public void Load_V6Config_MigratesToV12()
     {
         var v6Json = """
         {
@@ -267,7 +269,8 @@ public class ConfigServiceTests : IDisposable
     {
         var minimalJson = """
         {
-            "Version": 1
+            "Version": 12,
+            "Modes": null
         }
         """;
         File.WriteAllText(Path.Combine(_tempDir, "config.json"), minimalJson);
@@ -278,6 +281,75 @@ public class ConfigServiceTests : IDisposable
         Assert.NotNull(config.OverlayStyle);
         Assert.NotNull(config.DictionaryEntries);
         Assert.NotNull(config.Snippets);
+        Assert.NotNull(config.Modes);
+    }
+
+    [Fact]
+    public void Load_LowercaseVersion_DoesNotTriggerMigration()
+    {
+        var json = """
+        {
+            "version": 12,
+            "SpokenPunctuationEnabled": true,
+            "Modes": [{"Id":"standard","Name":"Standard","SystemPrompt":"test"}]
+        }
+        """;
+        File.WriteAllText(Path.Combine(_tempDir, "config.json"), json);
+
+        var config = _service.Load();
+
+        Assert.Equal(12, config.Version);
+        Assert.True(config.SpokenPunctuationEnabled);
+        Assert.Single(config.Modes);
+    }
+
+    [Fact]
+    public async Task SaveAsync_AtomicWrite_DoesNotCorruptFile()
+    {
+        var tasks = new List<Task>();
+        for (int i = 0; i < 20; i++)
+        {
+            int idx = i;
+            tasks.Add(Task.Run(async () =>
+            {
+                var cfg = new AppConfig { HotkeyKey = $"Key{idx}" };
+                await _service.SaveAsync(cfg);
+            }));
+        }
+
+        await Task.WhenAll(tasks);
+
+        var json = await File.ReadAllTextAsync(Path.Combine(_tempDir, "config.json"));
+        var doc = JsonDocument.Parse(json);
+        Assert.True(doc.RootElement.TryGetProperty("HotkeyKey", out _));
+    }
+
+    [Fact]
+    public void ConfigTypes_AllInitPropertiesHaveJsonPropertyName()
+    {
+        var types = new[]
+        {
+            typeof(AppConfig),
+            typeof(ModeConfig),
+            typeof(Snippet),
+            typeof(DictionaryEntry),
+            typeof(OverlayPlacementConfig),
+            typeof(OverlayStyleConfig),
+            typeof(PreviewToastSpecificConfig)
+        };
+
+        foreach (var type in types)
+        {
+            foreach (var prop in type.GetProperties())
+            {
+                if (prop.SetMethod is not null)
+                {
+                    var attr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
+                    Assert.NotNull(attr);
+                    Assert.Equal(prop.Name, attr.Name);
+                }
+            }
+        }
     }
 
     [Fact]
@@ -298,5 +370,62 @@ public class ConfigServiceTests : IDisposable
 
         Assert.Equal(12, config.Version);
         Assert.Contains(config.Modes, m => m.Id == "code");
+    }
+
+    [Fact]
+    public async Task PushTemporaryConfig_SetsOverride()
+    {
+        var original = new AppConfig { HotkeyKey = "F1" };
+        await _service.SaveAsync(original);
+
+        var temp = new AppConfig { HotkeyKey = "F2" };
+        using (_service.PushTemporaryConfig(temp))
+        {
+            var loaded = _service.Load();
+            Assert.Equal("F2", loaded.HotkeyKey);
+        }
+    }
+
+    [Fact]
+    public async Task PopTemporaryConfig_RestoresOriginal()
+    {
+        var original = new AppConfig { HotkeyKey = "F1" };
+        await _service.SaveAsync(original);
+
+        var temp = new AppConfig { HotkeyKey = "F2" };
+        var scope = _service.PushTemporaryConfig(temp);
+        scope.Dispose();
+
+        var loaded = _service.Load();
+        Assert.Equal("F1", loaded.HotkeyKey);
+    }
+
+    [Fact]
+    public async Task NestedPushPop_WorksCorrectly()
+    {
+        var original = new AppConfig { HotkeyKey = "F1" };
+        await _service.SaveAsync(original);
+
+        var tempA = new AppConfig { HotkeyKey = "F2" };
+        var tempB = new AppConfig { HotkeyKey = "F3" };
+
+        using (_service.PushTemporaryConfig(tempA))
+        {
+            using (_service.PushTemporaryConfig(tempB))
+            {
+                Assert.Equal("F3", _service.Load().HotkeyKey);
+            }
+            Assert.Equal("F2", _service.Load().HotkeyKey);
+        }
+        Assert.Equal("F1", _service.Load().HotkeyKey);
+    }
+
+    [Fact]
+    public void PopTemporaryConfig_EmptyStack_DoesNotThrow()
+    {
+        var method = typeof(ConfigService).GetMethod("PopTemporaryConfig", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(method);
+        var ex = Record.Exception(() => method.Invoke(_service, null));
+        Assert.Null(ex);
     }
 }

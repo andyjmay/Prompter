@@ -129,7 +129,7 @@ public partial class FileLogger : IFileLogger
         return entries;
     }
 
-    private void PurgeOldLogs()
+    internal void PurgeOldLogs()
     {
         try
         {

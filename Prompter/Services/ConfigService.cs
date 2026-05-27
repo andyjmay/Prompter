@@ -11,6 +11,7 @@ public class ConfigService : IConfigService
     private AppConfig? _cached;
     private readonly Stack<AppConfig> _overrideStack = new();
     private readonly object _cacheLock = new();
+    private readonly object _diskLock = new();
     private readonly IFileLogger? _logger;
 
     public event EventHandler<AppConfig>? ConfigChanged;
@@ -70,9 +71,7 @@ public class ConfigService : IConfigService
                     return _cached;
                 }
 
-                int rawVersion = 0;
-                if (doc.RootElement.TryGetProperty("Version", out var v) && v.ValueKind == JsonValueKind.Number)
-                    rawVersion = v.GetInt32();
+                int rawVersion = GetRawVersionCaseInsensitive(doc.RootElement);
 
                 _cached = Migrate(deserialized, doc, rawVersion);
                 if (_cached != deserialized)
@@ -84,7 +83,7 @@ public class ConfigService : IConfigService
         }
     }
 
-    public async Task SaveAsync(AppConfig config)
+    public Task SaveAsync(AppConfig config)
     {
         lock (_cacheLock)
         {
@@ -92,8 +91,14 @@ public class ConfigService : IConfigService
         }
         Directory.CreateDirectory(_configDir);
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(_configPath, json);
+        var tempPath = Path.Combine(_configDir, Path.GetRandomFileName());
+        File.WriteAllText(tempPath, json);
+        lock (_diskLock)
+        {
+            File.Move(tempPath, _configPath, overwrite: true);
+        }
         ConfigChanged?.Invoke(this, config);
+        return Task.CompletedTask;
     }
 
     public bool IsFirstRun()
@@ -144,7 +149,12 @@ public class ConfigService : IConfigService
     {
         Directory.CreateDirectory(_configDir);
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(_configPath, json);
+        var tempPath = Path.Combine(_configDir, Path.GetRandomFileName());
+        File.WriteAllText(tempPath, json);
+        lock (_diskLock)
+        {
+            File.Move(tempPath, _configPath, overwrite: true);
+        }
     }
 
     private static AppConfig Migrate(AppConfig config, JsonDocument rawDoc, int rawVersion)
@@ -305,7 +315,20 @@ public class ConfigService : IConfigService
             PreviewToast = migrated.PreviewToast ?? new(),
             OverlayStyle = migrated.OverlayStyle ?? new(),
             DictionaryEntries = migrated.DictionaryEntries ?? new(),
-            Snippets = migrated.Snippets ?? new()
+            Snippets = migrated.Snippets ?? new(),
+            Modes = migrated.Modes ?? new()
         };
+    }
+
+    private static int GetRawVersionCaseInsensitive(JsonElement root)
+    {
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, "version", StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == JsonValueKind.Number)
+            {
+                return prop.Value.GetInt32();
+            }
+        }
+        return 0;
     }
 }

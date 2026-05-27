@@ -151,4 +151,28 @@ public class FileLoggerTests : IDisposable
         var ex = Record.Exception(() => _logger.Log("safe"));
         Assert.Null(ex);
     }
+
+    [Fact]
+    public void PurgeOldLogs_DeletesFilesOlderThanSevenDays()
+    {
+        var oldDate = DateTime.Now.AddDays(-8);
+        var oldFile = Path.Combine(_tempDir, $"prompter-debug-{oldDate:yyyyMMdd}.txt");
+        File.WriteAllText(oldFile, "old log content");
+        File.SetLastWriteTime(oldFile, oldDate);
+
+        _logger.PurgeOldLogs();
+
+        Assert.False(File.Exists(oldFile));
+    }
+
+    [Fact]
+    public void PurgeOldLogs_PreservesRecentFiles()
+    {
+        var todayFile = Path.Combine(_tempDir, $"prompter-debug-{DateTime.Now:yyyyMMdd}.txt");
+        File.WriteAllText(todayFile, "recent log content");
+
+        _logger.PurgeOldLogs();
+
+        Assert.True(File.Exists(todayFile));
+    }
 }

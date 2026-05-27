@@ -419,6 +419,77 @@ public class TextFormatterSafeguardTests
 
     #endregion
 
+    #region RejectIfHallucinated_SpellingAndPunctuation
+
+    [Fact]
+    public void RejectIfHallucinated_AllowsSpellingCorrection()
+    {
+        var raw = "teh quikc brown fxo";
+        var result = "The quick brown fox.";
+        var accepted = TextFormatter.RejectIfHallucinated(raw, result);
+        Assert.Equal(result, accepted);
+    }
+
+    [Fact]
+    public void RejectIfHallucinated_StillRejectsTrueHallucination()
+    {
+        var raw = "Hello world";
+        var result = "1. Hello world\n2. How are you?\n3. ...";
+        var rejected = TextFormatter.RejectIfHallucinated(raw, result);
+        Assert.Equal(raw, rejected);
+    }
+
+    [Fact]
+    public void RejectIfHallucinated_AllowsCapitalizationAndPunctuationChanges()
+    {
+        var raw = "hello world";
+        var result = "Hello, world!";
+        var accepted = TextFormatter.RejectIfHallucinated(raw, result);
+        Assert.Equal(result, accepted);
+    }
+
+    #endregion
+
+    #region StripTrailingArtifacts_EdgeCases
+
+    [Fact]
+    public void StripTrailingArtifacts_LeavesShortResultWithPunctuation()
+    {
+        var raw = "hello";
+        var result = "Hello?";
+        var stripped = TextFormatter.StripTrailingArtifactsByRawAlignment(result, raw);
+        Assert.Equal("Hello?", stripped);
+    }
+
+    [Fact]
+    public void StripTrailingArtifacts_LeavesShortResultUnchanged()
+    {
+        var raw = "hello world";
+        var result = "Hello world.";
+        var stripped = TextFormatter.StripTrailingArtifactsByRawAlignment(result, raw);
+        Assert.Equal("Hello world.", stripped);
+    }
+
+    [Fact]
+    public void StripTrailingArtifacts_StripsPunctuationBearingArtifact()
+    {
+        var raw = "hello world";
+        var result = "Hello world. Would you like help?";
+        var stripped = TextFormatter.StripTrailingArtifactsByRawAlignment(result, raw);
+        Assert.Equal("Hello world.", stripped);
+    }
+
+    [Fact]
+    public void StripTrailingArtifacts_LeavesLegitimateQuestion()
+    {
+        var raw = "hello world?";
+        var result = "Hello world?";
+        var stripped = TextFormatter.StripTrailingArtifactsByRawAlignment(result, raw);
+        Assert.Equal("Hello world?", stripped);
+    }
+
+    #endregion
+
     #region CodeModeTests
 
     [Theory]
