@@ -36,7 +36,7 @@
                     <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
                     <MenuItem Header="Copy Last Output" Command="{Binding CopyLastOutputCommand}"/>
                     <Separator/>
-                    <MenuItem Header="Exit" Command="{Binding ExitCommand}"/>
+                    <MenuItem Header="Exit" Click="ExitMenuItem_Click"/>
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>

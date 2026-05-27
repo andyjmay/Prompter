@@ -6,7 +6,6 @@ namespace Prompter.Services;
 
 public class AppEventCoordinator : IDisposable
 {
-    private readonly IModelManager _modelManager;
     private readonly IPipelineOrchestrator _pipeline;
     private readonly TrayIconViewModel _trayVm;
     private readonly TrayIconView _trayView;
@@ -18,14 +17,12 @@ public class AppEventCoordinator : IDisposable
     private readonly Action _onRecordingStopped;
 
     public AppEventCoordinator(
-        IModelManager modelManager,
         IPipelineOrchestrator pipeline,
         TrayIconViewModel trayVm,
         TrayIconView trayView,
         IConfigService configService,
         IHotkeyService hotkeyService)
     {
-        _modelManager = modelManager;
         _pipeline = pipeline;
         _trayVm = trayVm;
         _trayView = trayView;
@@ -39,7 +36,6 @@ public class AppEventCoordinator : IDisposable
 
     public void Initialize()
     {
-        _modelManager.ModelDownloadProgress += OnModelDownloadProgress;
         _pipeline.OutputReady += _onOutputReady;
         _pipeline.ShowBalloon += _onShowBalloon;
         _hotkeyService.RecordingStarted += _onRecordingStarted;
@@ -48,25 +44,10 @@ public class AppEventCoordinator : IDisposable
 
     public void Dispose()
     {
-        _modelManager.ModelDownloadProgress -= OnModelDownloadProgress;
         _pipeline.OutputReady -= _onOutputReady;
         _pipeline.ShowBalloon -= _onShowBalloon;
         _hotkeyService.RecordingStarted -= _onRecordingStarted;
         _hotkeyService.RecordingStopped -= _onRecordingStopped;
-    }
-
-    private void OnModelDownloadProgress(string model, float pct)
-    {
-        var config = _configService.Load();
-        if (!config.NotificationsEnabled) return;
-
-        _trayView.Dispatcher.Invoke(() =>
-        {
-            _trayView.TrayIcon.ShowBalloonTip(
-                "Prompter — Downloading AI models",
-                $"{model}: {pct:F0}%",
-                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
-        });
     }
 
     private void OnShowBalloon(string title, string message)

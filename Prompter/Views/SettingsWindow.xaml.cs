@@ -90,10 +90,9 @@ public partial class SettingsWindow : Window
         CleanPromptTextBox.Text = _config.CleanPrompt ?? string.Empty;
         UpdateCleanPromptControlsState();
         ListFormattingEnabledCheckBox.IsChecked = _config.ListFormattingEnabled;
-        HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
-
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
         PasteThresholdTextBox.Text = _config.PasteThresholdCharacters.ToString();
+        HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
 
         TtlSlider.ValueChanged += (_, e) => TtlValue.Text = e.NewValue.ToString("F0");
 
@@ -463,7 +462,7 @@ public partial class SettingsWindow : Window
         var selected = ModesListView.SelectedItem as ModeListItem;
         if (selected == null)
         {
-            MessageBox.Show("Please select a mode from the list first.", "Set Default", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("Please select a mode from the list first.", "Set Current", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -1662,6 +1661,69 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void ResetAppearanceButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Reset all appearance settings to their default values?",
+            "Reset Appearance",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        // Recording overlay defaults
+        RecordingAnchorComboBox.SelectedItem = OverlayAnchor.TopCenter.ToString();
+        RecordingOffsetXTextBox.Text = "0";
+        RecordingOffsetYTextBox.Text = "40";
+        ShowRecordingOverlayCheckBox.IsChecked = true;
+        ShowAudioMeterCheckBox.IsChecked = true;
+        ShowStatusTextCheckBox.IsChecked = true;
+        ListeningLabelTextBox.Text = "Listening...";
+        ProcessingLabelTextBox.Text = "Processing…";
+
+        // Preview toast defaults
+        PreviewAnchorComboBox.SelectedItem = OverlayAnchor.BottomRight.ToString();
+        PreviewOffsetXTextBox.Text = "-16";
+        PreviewOffsetYTextBox.Text = "-16";
+        ShowPreviewToastCheckBox.IsChecked = true;
+        ToastDurationSlider.Value = 3;
+        ToastDurationValue.Text = "3";
+        MaxWidthSlider.Value = 500;
+        MaxWidthValue.Text = "500";
+
+        // Colors defaults
+        ThemeComboBox.SelectedItem = OverlayTheme.Dark.ToString();
+        AccentColorTextBox.Text = string.Empty;
+        TextColorTextBox.Text = string.Empty;
+        ProcessingAccentColorTextBox.Text = string.Empty;
+        OverlayBackgroundColorTextBox.Text = string.Empty;
+        ToastBackgroundColorTextBox.Text = string.Empty;
+
+        // Typography defaults
+        FontFamilyComboBox.Text = "Segoe UI";
+        OverlayFontSizeSlider.Value = 18;
+        OverlayFontSizeValue.Text = "18";
+        ToastTitleFontSizeSlider.Value = 14;
+        ToastTitleFontSizeValue.Text = "14";
+        ToastBodyFontSizeSlider.Value = 12;
+        ToastBodyFontSizeValue.Text = "12";
+
+        // Shape & effects defaults
+        OpacitySlider.Value = 80;
+        OpacityValue.Text = "80%";
+        ToastOpacitySlider.Value = 100;
+        ToastOpacityValue.Text = "100%";
+        CornerRadiusSlider.Value = 16;
+        CornerRadiusValue.Text = "16";
+        PaddingSlider.Value = 16;
+        PaddingValue.Text = "16";
+        ShadowEnabledCheckBox.IsChecked = false;
+        PulseSpeedComboBox.SelectedItem = OverlayPulseSpeed.Normal.ToString();
+
+        UpdateMockups();
+    }
+
     protected override void OnClosing(CancelEventArgs e)
     {
         _settingsCts?.Cancel();
@@ -1746,6 +1808,8 @@ public partial class SettingsWindow : Window
         ShowSection(index);
     }
 
+    private int _currentSectionIndex = 0;
+
     private void ShowSection(int index)
     {
         var sections = new[]
@@ -1767,6 +1831,8 @@ public partial class SettingsWindow : Window
                 panel.Children.Remove(target);
             }
             TabContentHost.Content = target;
+            _currentSectionIndex = index;
+            ResetAppearanceButton.Visibility = index == 5 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
