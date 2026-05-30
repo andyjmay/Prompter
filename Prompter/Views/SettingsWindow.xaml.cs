@@ -37,10 +37,12 @@ public partial class SettingsWindow : Window
     private readonly ITranscriptionService _transcriptionService;
     private readonly IAudioRecorderService _audioRecorderService;
     private readonly IThemeService _themeService;
+    private readonly IHotkeyService _hotkeyService;
     private bool _populatingChatModels;
     private bool _populatingWhisperModels;
     private List<LogEntry> _allLogEntries = new();
     private CancellationTokenSource? _settingsCts;
+    private bool _hotkeyUnregisteredDuringCapture;
 
     public SettingsWindow(
         IConfigService configService,
@@ -56,7 +58,8 @@ public partial class SettingsWindow : Window
         ITranscriptionService transcriptionService,
         IAudioRecorderService audioRecorderService,
         IDialogService dialogService,
-        IThemeService themeService)
+        IThemeService themeService,
+        IHotkeyService hotkeyService)
     {
         InitializeComponent();
         ShowSection(0);
@@ -74,6 +77,7 @@ public partial class SettingsWindow : Window
         _audioRecorderService = audioRecorderService;
         _dialogService = dialogService;
         _themeService = themeService;
+        _hotkeyService = hotkeyService;
         _config = configService.Load();
 
         HotkeyTextBox.Text = string.IsNullOrEmpty(_config.HotkeyKey)
@@ -1126,6 +1130,8 @@ public partial class SettingsWindow : Window
     {
         HotkeyTextBox.Text = "Listening... (press Esc to cancel)";
         CaptureHotkeyButton.IsEnabled = false;
+        _hotkeyService.Unregister();
+        _hotkeyUnregisteredDuringCapture = true;
 
         var capturedMods = new HashSet<string>();
         var stableMods = new HashSet<string>();
@@ -1149,6 +1155,8 @@ public partial class SettingsWindow : Window
                 _captureTimer.Stop();
                 CaptureHotkeyButton.IsEnabled = true;
                 HotkeyTextBox.Text = "No key captured — click to retry";
+                _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
+                _hotkeyUnregisteredDuringCapture = false;
                 return;
             }
 
@@ -1163,6 +1171,8 @@ public partial class SettingsWindow : Window
                 _captureTimer.Stop();
                 CaptureHotkeyButton.IsEnabled = true;
                 HotkeyTextBox.Text = "Cancelled — click to retry";
+                _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
+                _hotkeyUnregisteredDuringCapture = false;
                 return;
             }
 
@@ -1208,6 +1218,8 @@ public partial class SettingsWindow : Window
                             CaptureHotkeyButton.IsEnabled = true;
                             HotkeyTextBox.Text = lastDisplay;
                             _finalizing = false;
+                            _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
+                            _hotkeyUnregisteredDuringCapture = false;
                         });
                     });
                 }
@@ -1230,6 +1242,8 @@ public partial class SettingsWindow : Window
                                 CaptureHotkeyButton.IsEnabled = true;
                                 HotkeyTextBox.Text = stableModStr;
                                 _finalizing = false;
+                                _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
+                                _hotkeyUnregisteredDuringCapture = false;
                             });
                         });
                         return;
@@ -1730,6 +1744,11 @@ public partial class SettingsWindow : Window
         base.OnClosing(e);
         _captureTimer?.Stop();
         _captureTimer = null;
+        if (_hotkeyUnregisteredDuringCapture)
+        {
+            _hotkeyService.Initialize(_config.HotkeyModifiers, _config.HotkeyKey);
+            _hotkeyUnregisteredDuringCapture = false;
+        }
         _previewOverlay?.Close();
         _previewOverlay = null;
         _previewToast?.Close();

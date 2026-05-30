@@ -27,7 +27,8 @@ public class FakeDialogService : IDialogService
         IInputInjectorService inputInjectorService,
         ITranscriptionService transcriptionService,
         IAudioRecorderService audioRecorderService,
-        IThemeService themeService) => false;
+        IThemeService themeService,
+        IHotkeyService hotkeyService) => false;
 
     public List<string> WelcomeDialogs { get; } = new();
     public bool ShowWelcomeDialog(string hotkeyDisplay)

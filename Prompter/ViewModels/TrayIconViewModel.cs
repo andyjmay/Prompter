@@ -141,8 +141,6 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
         var oldKey = _config.HotkeyKey;
         var oldMods = _config.HotkeyModifiers;
 
-        _hotkeyService.Unregister();
-
         bool saved = _dialogService.ShowSettingsDialog(
             _configService,
             _clipboardService,
@@ -156,13 +154,14 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
             _inputInjectorService,
             _transcriptionService,
             _audioRecorderService,
-            _themeService);
+            _themeService,
+            _hotkeyService);
 
         _config = _configService.Load();
 
         if (saved)
         {
-            _logger.Log($"Settings closed. Re-registering hotkey: {_config.HotkeyModifiers}+{_config.HotkeyKey}.");
+            _logger.Log($"Settings saved. Updating hotkey: {_config.HotkeyModifiers}+{_config.HotkeyKey}.");
             try
             {
                 _hotkeyService.UpdateHotkey(_config.HotkeyModifiers, _config.HotkeyKey);
@@ -172,7 +171,7 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
                 _logger.LogException(ex, "Hotkey re-registration failed");
                 _dialogService.ShowWarning(
                     "Hotkey Error",
-                    $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}'.\n\nIt may already be in use by another application. Reverting to the previous hotkey.");
+                    $"Could not register the new hotkey '{_config.HotkeyModifiers} + {_config.HotkeyKey}' .\n\nIt may already be in use by another application. Reverting to the previous hotkey.");
 
                 _config = _config with { HotkeyKey = oldKey, HotkeyModifiers = oldMods };
                 _ = _configService.SaveAsync(_config);
@@ -184,17 +183,6 @@ public class TrayIconViewModel : IAsyncDisposable, System.ComponentModel.INotify
                 {
                     _logger.LogException(ex2, "Hotkey revert also failed");
                 }
-            }
-        }
-        else
-        {
-            try
-            {
-                _hotkeyService.UpdateHotkey(oldMods, oldKey);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogException(ex, "Hotkey re-register after cancel failed");
             }
         }
     }
