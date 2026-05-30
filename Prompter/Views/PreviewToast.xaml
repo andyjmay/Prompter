@@ -1,6 +1,7 @@
 <Window x:Class="Prompter.Views.PreviewToast"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Prompter.Views"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -19,7 +20,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <TextBlock x:Name="TitleText" Text="Prompter Output" FontWeight="Bold" Grid.Row="0"/>
-            <ScrollViewer Grid.Row="1" Margin="0,8,0,8" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer Grid.Row="1" Margin="0,8,0,8" VerticalScrollBarVisibility="Auto" local:SmoothScrollBehavior.IsEnabled="True">
                 <TextBlock x:Name="OutputText" TextWrapping="Wrap"/>
             </ScrollViewer>
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">

@@ -196,7 +196,7 @@
             <!-- SECTION 0: General                                        -->
             <!-- ========================================================= -->
             <Grid x:Name="GeneralSection">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" local:SmoothScrollBehavior.IsEnabled="True">
                     <StackPanel Margin="0,0,0,48">
                         <TextBlock Text="General Settings"
                                    Style="{StaticResource SectionHeaderStyle}"/>
@@ -414,14 +414,15 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                          <TextBox x:Name="CleanPromptTextBox"
-                                                  Grid.Column="0"
-                                                  ToolTip="Custom prompt instructions appended when removing filler words"
-                                                  FontSize="11"
-                                                  TextWrapping="Wrap"
-                                                  Height="80"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  Margin="0,0,8,0"
-                                                  AutomationProperties.Name="Clean mode prompt"/>
+                                                   Grid.Column="0"
+                                                   ToolTip="Custom prompt instructions appended when removing filler words"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Height="80"
+                                                   VerticalScrollBarVisibility="Auto"
+                                                   Margin="0,0,8,0"
+                                                   AutomationProperties.Name="Clean mode prompt"
+                                                   local:SmoothScrollBehavior.IsEnabled="True"/>
                                         <Button x:Name="ResetCleanPromptButton"
                                                 Content="Reset"
                                                 Grid.Column="1"
@@ -507,7 +508,9 @@
                                   Grid.Row="0"
                                   Margin="0"
                                   BorderThickness="0"
-                                  AutomationProperties.Name="Text Correction Modes">
+                                  AutomationProperties.Name="Text Correction Modes"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="8,6">
@@ -722,7 +725,9 @@
                                   Grid.Row="1"
                                   Margin="0"
                                   BorderThickness="0"
-                                  AutomationProperties.Name="Local Models">
+                                  AutomationProperties.Name="Local Models"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="8,6">
@@ -840,7 +845,9 @@
                                   Grid.Row="0"
                                   Margin="0"
                                   BorderThickness="0"
-                                  AutomationProperties.Name="Personal Dictionary">
+                                  AutomationProperties.Name="Personal Dictionary"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="8,6">
@@ -933,7 +940,9 @@
                                   Grid.Row="0"
                                   Margin="0"
                                   BorderThickness="0"
-                                  AutomationProperties.Name="Text Snippets">
+                                  AutomationProperties.Name="Text Snippets"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="8,6">
@@ -999,7 +1008,7 @@
             <!-- SECTION 5: Appearance                                     -->
             <!-- ========================================================= -->
             <Grid x:Name="AppearanceSection">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" local:SmoothScrollBehavior.IsEnabled="True">
                     <StackPanel Margin="0,0,0,48">
                         <TextBlock Text="Appearance &amp; Overlays"
                                    Style="{StaticResource SectionHeaderStyle}"/>
@@ -1736,7 +1745,9 @@
                                   Margin="0"
                                   BorderThickness="0"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  AutomationProperties.Name="Application Logs">
+                                  AutomationProperties.Name="Application Logs"
+                                  VirtualizingPanel.ScrollUnit="Pixel"
+                                  local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="8,4">

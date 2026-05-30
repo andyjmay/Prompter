@@ -1,6 +1,7 @@
 <Window x:Class="Prompter.Views.CustomModelManagerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Prompter.Views"
         Title="Custom Model Manager"
         Width="980"
         Height="720"
@@ -84,7 +85,7 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <ListView x:Name="DownloadedListView" Grid.Row="0" Margin="0,0,0,12" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                        <ListView x:Name="DownloadedListView" Grid.Row="0" Margin="0,0,0,12" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.View>
                                 <GridView x:Name="DownloadedGridView">
                                     <!-- Populated programmatically based on active type -->
@@ -107,7 +108,7 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <ListView x:Name="RecommendedListView" Grid.Row="0" Margin="0,0,0,12" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                        <ListView x:Name="RecommendedListView" Grid.Row="0" Margin="0,0,0,12" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="Model Name" Width="180">
@@ -168,7 +169,7 @@
                         </StackPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,8">
-                            <ListView x:Name="HubRepoListView" SelectionChanged="HubRepoListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                            <ListView x:Name="HubRepoListView" SelectionChanged="HubRepoListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="Model" Width="220">
@@ -208,7 +209,7 @@
                         <TextBlock Grid.Row="2" Text="2. Select a GGUF file to download" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,4"/>
 
                         <Grid Grid.Row="3" Margin="0,0,0,8">
-                            <ListView x:Name="HubFileListView" SelectionChanged="HubFileListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                            <ListView x:Name="HubFileListView" SelectionChanged="HubFileListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="File" Width="260">
@@ -258,7 +259,7 @@
                         </StackPanel>
 
                         <Grid Grid.Row="1" Margin="0,0,0,8">
-                            <ListView x:Name="AdvancedRepoListView" SelectionChanged="AdvancedRepoListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                            <ListView x:Name="AdvancedRepoListView" SelectionChanged="AdvancedRepoListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="Model" Width="220">
@@ -298,7 +299,7 @@
                         <TextBlock Grid.Row="2" Text="2. Select a file to download" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,4"/>
 
                         <Grid Grid.Row="3" Margin="0,0,0,8">
-                            <ListView x:Name="AdvancedFileListView" SelectionChanged="AdvancedFileListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click">
+                            <ListView x:Name="AdvancedFileListView" SelectionChanged="AdvancedFileListView_SelectionChanged" GridViewColumnHeader.Click="GridViewColumnHeader_Click" VirtualizingPanel.ScrollUnit="Pixel" local:SmoothScrollBehavior.IsEnabled="True">
                                 <ListView.View>
                                     <GridView>
                                         <GridViewColumn Header="File" Width="260">
