@@ -24,6 +24,8 @@ public class PipelineOrchestrator : IPipelineOrchestrator
     private readonly object _stopLock = new();
     private bool _isStopping;
     private int _recordingGeneration;
+    private readonly List<Task> _pendingClipboardRestores = new();
+    private readonly object _pendingLock = new();
 
     public event Action<string>? OutputReady;
     public event Action<string, string>? ShowBalloon;
@@ -283,15 +285,30 @@ public class PipelineOrchestrator : IPipelineOrchestrator
                 {
                     _dispatcher.Invoke(() => _clipboard.CopyText(text));
                     _injector.SimulatePaste();
-                    await Task.Delay(150);
                     _logger.Log("Text pasted via clipboard.");
+
+                    var delayMs = Math.Min(300 + text.Length * 10, 5000);
+                    var restoreTask = Task.Run(async () =>
+                    {
+                        await Task.Delay(delayMs);
+                        _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
+                        _logger.Log($"Clipboard restored after {delayMs} ms.");
+                    });
+                    lock (_pendingLock)
+                    {
+                        _pendingClipboardRestores.Add(restoreTask);
+                    }
+                    _ = restoreTask.ContinueWith(_ =>
+                    {
+                        lock (_pendingLock)
+                        {
+                            _pendingClipboardRestores.Remove(restoreTask);
+                        }
+                    }, TaskScheduler.Default);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogException(ex, "Clipboard paste failed");
-                }
-                finally
-                {
                     _dispatcher.Invoke(() => _clipboard.RestoreClipboard(snapshot));
                 }
             }
@@ -323,5 +340,20 @@ public class PipelineOrchestrator : IPipelineOrchestrator
         _maxDurationCts?.Dispose();
         _session?.Dispose();
         _uiManager.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        Task[] pending;
+        lock (_pendingLock)
+        {
+            pending = _pendingClipboardRestores.ToArray();
+        }
+        if (pending.Length > 0)
+        {
+            _logger.Log($"Waiting for {pending.Length} pending clipboard restore(s)...");
+            await Task.WhenAll(pending).WaitAsync(TimeSpan.FromSeconds(5));
+        }
     }
 }
