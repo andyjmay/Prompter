@@ -733,28 +733,33 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding Alias}"
-                                                   Foreground="White"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding TaskType}"
-                                                   Foreground="#FFCCCCCC"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding SizeDescription}"
-                                                   Foreground="#FFCCCCCC"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="3"
-                                                   Text="{Binding IsCached, Converter={StaticResource BoolToYesNoConverter}}"
-                                                   Foreground="{Binding IsCached, Converter={StaticResource BoolToColorConverter}}"
-                                                   FontWeight="Bold"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="4"
-                                                   Text="{Binding IsLoaded, Converter={StaticResource BoolToActiveConverter}}"
-                                                   Foreground="{Binding IsLoaded, Converter={StaticResource BoolToLoadedColorConverter}}"
-                                                   FontWeight="Bold"
-                                                   VerticalAlignment="Center"/>
+                                         <TextBlock Grid.Column="0"
+                                                    Text="{Binding Alias}"
+                                                    Foreground="White"
+                                                    VerticalAlignment="Center"
+                                                    Margin="4,0"/>
+                                         <TextBlock Grid.Column="1"
+                                                    Text="{Binding TaskType}"
+                                                    Foreground="#FFCCCCCC"
+                                                    VerticalAlignment="Center"
+                                                    Margin="4,0"/>
+                                         <TextBlock Grid.Column="2"
+                                                    Text="{Binding SizeDescription}"
+                                                    Foreground="#FFCCCCCC"
+                                                    VerticalAlignment="Center"
+                                                    Margin="4,0"/>
+                                         <TextBlock Grid.Column="3"
+                                                    Text="{Binding IsCached, Converter={StaticResource BoolToYesNoConverter}}"
+                                                    Foreground="{Binding IsCached, Converter={StaticResource BoolToColorConverter}}"
+                                                    FontWeight="Bold"
+                                                    VerticalAlignment="Center"
+                                                    Margin="4,0"/>
+                                         <TextBlock Grid.Column="4"
+                                                    Text="{Binding IsLoaded, Converter={StaticResource BoolToActiveConverter}}"
+                                                    Foreground="{Binding IsLoaded, Converter={StaticResource BoolToLoadedColorConverter}}"
+                                                    FontWeight="Bold"
+                                                    VerticalAlignment="Center"
+                                                    Margin="4,0"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
