@@ -84,7 +84,6 @@ public partial class SettingsWindow : Window
             ? _config.HotkeyModifiers
             : $"{_config.HotkeyModifiers} + {_config.HotkeyKey}";
         TtlSlider.Value = _config.ModelIdleTtlMinutes;
-        TtlValue.Text = _config.ModelIdleTtlMinutes.ToString();
         AutoStartCheckBox.IsChecked = _config.AutoStartWithWindows;
         AudioFeedbackCheckBox.IsChecked = _config.AudioFeedbackEnabled;
         NotificationsCheckBox.IsChecked = _config.NotificationsEnabled;
@@ -97,8 +96,6 @@ public partial class SettingsWindow : Window
         UsePasteCheckBox.IsChecked = _config.UseClipboardPaste;
         PasteThresholdTextBox.Text = _config.PasteThresholdCharacters.ToString();
         HfTokenTextBox.Text = _config.HuggingFaceToken ?? string.Empty;
-
-        TtlSlider.ValueChanged += (_, e) => TtlValue.Text = e.NewValue.ToString("F0");
 
         RefreshModesList();
         RefreshDictionaryList();
@@ -132,9 +129,7 @@ public partial class SettingsWindow : Window
         PreviewOffsetYTextBox.Text = _config.PreviewToast.Placement.OffsetY.ToString();
         ShowPreviewToastCheckBox.IsChecked = _config.PreviewToast.Placement.Enabled;
         ToastDurationSlider.Value = _config.PreviewToast.DurationSeconds;
-        ToastDurationValue.Text = _config.PreviewToast.DurationSeconds.ToString();
         MaxWidthSlider.Value = _config.PreviewToast.MaxWidth;
-        MaxWidthValue.Text = _config.PreviewToast.MaxWidth.ToString();
 
         foreach (var theme in Enum.GetValues<OverlayTheme>())
         {
@@ -164,20 +159,13 @@ public partial class SettingsWindow : Window
         FontFamilyComboBox.Text = currentFont;
 
         OverlayFontSizeSlider.Value = _config.OverlayStyle.OverlayFontSize;
-        OverlayFontSizeValue.Text = _config.OverlayStyle.OverlayFontSize.ToString();
         ToastTitleFontSizeSlider.Value = _config.OverlayStyle.ToastTitleFontSize;
-        ToastTitleFontSizeValue.Text = _config.OverlayStyle.ToastTitleFontSize.ToString();
         ToastBodyFontSizeSlider.Value = _config.OverlayStyle.ToastBodyFontSize;
-        ToastBodyFontSizeValue.Text = _config.OverlayStyle.ToastBodyFontSize.ToString();
 
         OpacitySlider.Value = (int)Math.Round(_config.OverlayStyle.BackgroundOpacity * 100);
-        OpacityValue.Text = OpacitySlider.Value.ToString("F0") + "%";
         ToastOpacitySlider.Value = (int)Math.Round(_config.OverlayStyle.ToastOpacity * 100);
-        ToastOpacityValue.Text = ToastOpacitySlider.Value.ToString("F0") + "%";
         CornerRadiusSlider.Value = _config.OverlayStyle.CornerRadius;
-        CornerRadiusValue.Text = _config.OverlayStyle.CornerRadius.ToString();
         PaddingSlider.Value = _config.OverlayStyle.Padding;
-        PaddingValue.Text = _config.OverlayStyle.Padding.ToString();
 
         ShadowEnabledCheckBox.IsChecked = _config.OverlayStyle.ShadowEnabled;
         ShowStatusTextCheckBox.IsChecked = _config.OverlayStyle.ShowStatusText;
@@ -190,43 +178,13 @@ public partial class SettingsWindow : Window
         }
         PulseSpeedComboBox.SelectedItem = _config.OverlayStyle.PulseSpeed.ToString();
 
-        ToastDurationSlider.ValueChanged += (_, e) => ToastDurationValue.Text = e.NewValue.ToString("F0");
-        MaxWidthSlider.ValueChanged += (_, e) => MaxWidthValue.Text = e.NewValue.ToString("F0");
-        OpacitySlider.ValueChanged += (_, e) =>
-        {
-            OpacityValue.Text = e.NewValue.ToString("F0") + "%";
-            UpdateMockups();
-        };
-        ToastOpacitySlider.ValueChanged += (_, e) =>
-        {
-            ToastOpacityValue.Text = e.NewValue.ToString("F0") + "%";
-            UpdateMockups();
-        };
-        CornerRadiusSlider.ValueChanged += (_, e) =>
-        {
-            CornerRadiusValue.Text = e.NewValue.ToString("F0");
-            UpdateMockups();
-        };
-        PaddingSlider.ValueChanged += (_, e) =>
-        {
-            PaddingValue.Text = e.NewValue.ToString("F0");
-            UpdateMockups();
-        };
-        OverlayFontSizeSlider.ValueChanged += (_, e) =>
-        {
-            OverlayFontSizeValue.Text = e.NewValue.ToString("F0");
-            UpdateMockups();
-        };
-        ToastTitleFontSizeSlider.ValueChanged += (_, e) =>
-        {
-            ToastTitleFontSizeValue.Text = e.NewValue.ToString("F0");
-            UpdateMockups();
-        };
-        ToastBodyFontSizeSlider.ValueChanged += (_, e) =>
-        {
-            ToastBodyFontSizeValue.Text = e.NewValue.ToString("F0");
-            UpdateMockups();
-        };
+        OpacitySlider.ValueChanged += (_, _) => UpdateMockups();
+        ToastOpacitySlider.ValueChanged += (_, _) => UpdateMockups();
+        CornerRadiusSlider.ValueChanged += (_, _) => UpdateMockups();
+        PaddingSlider.ValueChanged += (_, _) => UpdateMockups();
+        OverlayFontSizeSlider.ValueChanged += (_, _) => UpdateMockups();
+        ToastTitleFontSizeSlider.ValueChanged += (_, _) => UpdateMockups();
+        ToastBodyFontSizeSlider.ValueChanged += (_, _) => UpdateMockups();
 
         ThemeComboBox.SelectionChanged += (_, _) => UpdateMockups();
         AccentColorTextBox.TextChanged += (_, _) => UpdateMockups();
@@ -1702,9 +1660,7 @@ public partial class SettingsWindow : Window
         PreviewOffsetYTextBox.Text = "-16";
         ShowPreviewToastCheckBox.IsChecked = true;
         ToastDurationSlider.Value = 3;
-        ToastDurationValue.Text = "3";
         MaxWidthSlider.Value = 500;
-        MaxWidthValue.Text = "500";
 
         // Colors defaults
         ThemeComboBox.SelectedItem = OverlayTheme.Dark.ToString();
@@ -1717,21 +1673,14 @@ public partial class SettingsWindow : Window
         // Typography defaults
         FontFamilyComboBox.Text = "Segoe UI";
         OverlayFontSizeSlider.Value = 18;
-        OverlayFontSizeValue.Text = "18";
         ToastTitleFontSizeSlider.Value = 14;
-        ToastTitleFontSizeValue.Text = "14";
         ToastBodyFontSizeSlider.Value = 12;
-        ToastBodyFontSizeValue.Text = "12";
 
         // Shape & effects defaults
         OpacitySlider.Value = 80;
-        OpacityValue.Text = "80%";
         ToastOpacitySlider.Value = 100;
-        ToastOpacityValue.Text = "100%";
         CornerRadiusSlider.Value = 16;
-        CornerRadiusValue.Text = "16";
         PaddingSlider.Value = 16;
-        PaddingValue.Text = "16";
         ShadowEnabledCheckBox.IsChecked = false;
         PulseSpeedComboBox.SelectedItem = OverlayPulseSpeed.Normal.ToString();
 

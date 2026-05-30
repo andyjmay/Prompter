@@ -372,7 +372,8 @@
     <Style TargetType="ListViewItem">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="#FF111111"/>
-        <Setter Property="Padding" Value="8"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Margin" Value="0,1"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListViewItem">
@@ -495,7 +496,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
-                    <Grid x:Name="Bg" SnapsToDevicePixels="true">
+                    <Grid x:Name="Bg" SnapsToDevicePixels="true" Margin="2,4">
                         <Track x:Name="PART_Track"
                                IsDirectionReversed="true"
                                IsEnabled="{TemplateBinding IsEnabled}">
@@ -513,6 +514,16 @@
                             </Track.IncreaseRepeatButton>
                             <Track.Thumb>
                                 <Thumb Background="#FFAAAAAA" BorderBrush="Transparent">
+                                    <Thumb.Style>
+                                        <Style TargetType="Thumb">
+                                            <Setter Property="Opacity" Value="0.6"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Opacity" Value="1"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Thumb.Style>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border Background="{TemplateBinding Background}" CornerRadius="5"/>
@@ -532,12 +543,12 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="Orientation" Value="Vertical">
-                <Setter Property="Width" Value="10"/>
+                <Setter Property="Width" Value="6"/>
                 <Setter Property="Height" Value="Auto"/>
             </Trigger>
             <Trigger Property="Orientation" Value="Horizontal">
                 <Setter Property="Width" Value="Auto"/>
-                <Setter Property="Height" Value="10"/>
+                <Setter Property="Height" Value="6"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -718,19 +729,21 @@
     <!-- ToggleSwitch (pill toggle)                   -->
     <!-- ============================================ -->
     <Style x:Key="ToggleSwitchStyle" TargetType="ToggleButton">
-        <Setter Property="Width" Value="44"/>
-        <Setter Property="Height" Value="24"/>
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Height" Value="26"/>
         <Setter Property="Background" Value="#FFCCCCCC"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Track"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="12"
-                            Width="44" Height="24">
+                            CornerRadius="13"
+                            Width="48" Height="26"
+                            BorderThickness="2"
+                            BorderBrush="Transparent">
                         <Ellipse x:Name="Thumb"
                                  Fill="White"
-                                 Width="18" Height="18"
+                                 Width="20" Height="20"
                                  HorizontalAlignment="Left"
                                  VerticalAlignment="Center"
                                  Margin="3,0,0,0"/>
@@ -743,6 +756,9 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="#FF007ACC"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -784,6 +800,10 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderThickness" Value="2"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FF007ACC"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -797,7 +817,7 @@
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="#FF555555"/>
         <Setter Property="BorderBrush" Value="#FFCCCCCC"/>
-        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="12,6"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Template">
@@ -824,6 +844,10 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.4"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderThickness" Value="1"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FF007ACC"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -845,22 +869,36 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="border"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="4"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Left"
-                                          VerticalAlignment="Center"/>
-                    </Border>
+                    <Grid>
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent">
+                            <ContentPresenter HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <Border x:Name="accentBorder"
+                                Background="#FF007ACC"
+                                Width="4"
+                                HorizontalAlignment="Left"
+                                CornerRadius="4,0,0,4"
+                                Visibility="Collapsed"/>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="#FFE8E8E8"/>
                             <Setter Property="Foreground" Value="#FF111111"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="accentBorder" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="border" Property="Background" Value="#FFF0F0F0"/>
                             <Setter Property="Foreground" Value="#FF007ACC"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FF007ACC"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -876,6 +914,8 @@
         <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Margin" Value="0,0,0,16"/>
+        <Setter Property="BorderBrush" Value="#FFE0E0E0"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <!-- ============================================ -->

@@ -197,7 +197,7 @@
             <!-- ========================================================= -->
             <Grid x:Name="GeneralSection">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" local:SmoothScrollBehavior.IsEnabled="True">
-                    <StackPanel Margin="0,0,0,48">
+                    <StackPanel Margin="0,0,16,48">
                         <TextBlock Text="General Settings"
                                    Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -259,7 +259,8 @@
                                 <TextBlock x:Name="TtlValue"
                                            Visibility="Visible"
                                            Margin="0,4,0,0"
-                                           Foreground="#FFAAAAAA"/>
+                                           Foreground="#FFAAAAAA"
+                                           Text="{Binding Value, ElementName=TtlSlider, StringFormat={}{0:F0}}"/>
                             </StackPanel>
                         </Border>
 
@@ -418,7 +419,8 @@
                                                    ToolTip="Custom prompt instructions appended when removing filler words"
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
-                                                   Height="80"
+                                                   Height="120"
+                                                   MinHeight="120"
                                                    VerticalScrollBarVisibility="Auto"
                                                    Margin="0,0,8,0"
                                                    AutomationProperties.Name="Clean mode prompt"
@@ -561,14 +563,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <TextBlock x:Name="ModesEmptyText"
-                                   Grid.Row="0"
-                                   Text="No modes configured."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#FFBBBBBB"
-                                   FontSize="14"
-                                   Visibility="Collapsed"/>
+                        <StackPanel x:Name="ModesEmptyText"
+                                    Grid.Row="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE8D4;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="48"
+                                       Foreground="#FF666666"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="No modes configured."
+                                       Foreground="#FFBBBBBB"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
 
                         <Border Grid.Row="1"
                                 Padding="12"
@@ -770,14 +780,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <TextBlock x:Name="ModelsEmptyText"
-                                   Grid.Row="1"
-                                   Text="No models available."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#FFBBBBBB"
-                                   FontSize="14"
-                                   Visibility="Collapsed"/>
+                        <StackPanel x:Name="ModelsEmptyText"
+                                    Grid.Row="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE8A5;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="48"
+                                       Foreground="#FF666666"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="No models available."
+                                       Foreground="#FFBBBBBB"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
 
                         <Border Grid.Row="2"
                                 Padding="16,12"
@@ -870,14 +888,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <TextBlock x:Name="DictionaryEmptyText"
-                                   Grid.Row="0"
-                                   Text="No entries yet. Click + Add Entry to get started."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#FFBBBBBB"
-                                   FontSize="14"
-                                   Visibility="Collapsed"/>
+                        <StackPanel x:Name="DictionaryEmptyText"
+                                    Grid.Row="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE82D;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="48"
+                                       Foreground="#FF666666"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="No entries yet. Click + Add Entry to get started."
+                                       Foreground="#FFBBBBBB"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
 
                         <Border Grid.Row="1"
                                 Padding="12"
@@ -965,14 +991,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <TextBlock x:Name="SnippetsEmptyText"
-                                   Grid.Row="0"
-                                   Text="No snippets yet. Click + Add Snippet to get started."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#FFBBBBBB"
-                                   FontSize="14"
-                                   Visibility="Collapsed"/>
+                        <StackPanel x:Name="SnippetsEmptyText"
+                                    Grid.Row="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE8C8;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="48"
+                                       Foreground="#FF666666"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="No snippets yet. Click + Add Snippet to get started."
+                                       Foreground="#FFBBBBBB"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
 
                         <Border Grid.Row="1"
                                 Padding="12"
@@ -1009,7 +1043,7 @@
             <!-- ========================================================= -->
             <Grid x:Name="AppearanceSection">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" local:SmoothScrollBehavior.IsEnabled="True">
-                    <StackPanel Margin="0,0,0,48">
+                    <StackPanel Margin="0,0,16,48">
                         <TextBlock Text="Appearance &amp; Overlays"
                                    Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -1205,13 +1239,14 @@
                                                 AutoToolTipPlacement="TopLeft"
                                                 AutoToolTipPrecision="0"
                                                 VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="ToastDurationValue"
-                                                   Grid.Column="2"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"
-                                                   FontWeight="Bold"
-                                                   Foreground="#FF00BFFF"
-                                                   FontSize="14"/>
+                                         <TextBlock x:Name="ToastDurationValue"
+                                                    Grid.Column="2"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    FontWeight="Bold"
+                                                    Foreground="#FF00BFFF"
+                                                    FontSize="14"
+                                                    Text="{Binding Value, ElementName=ToastDurationSlider, StringFormat={}{0:F0}}"/>
                                     </Grid>
 
                                     <Grid Margin="0,0,0,8">
@@ -1232,13 +1267,14 @@
                                                 AutoToolTipPlacement="TopLeft"
                                                 AutoToolTipPrecision="0"
                                                 VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="MaxWidthValue"
-                                                   Grid.Column="2"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"
-                                                   FontWeight="Bold"
-                                                   Foreground="#FF00BFFF"
-                                                   FontSize="14"/>
+                                         <TextBlock x:Name="MaxWidthValue"
+                                                    Grid.Column="2"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    FontWeight="Bold"
+                                                    Foreground="#FF00BFFF"
+                                                    FontSize="14"
+                                                    Text="{Binding Value, ElementName=MaxWidthSlider, StringFormat={}{0:F0}}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -1429,13 +1465,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="OverlayFontSizeValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="OverlayFontSizeValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=OverlayFontSizeSlider, StringFormat={}{0:F0}}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -1455,13 +1492,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="ToastTitleFontSizeValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="ToastTitleFontSizeValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=ToastTitleFontSizeSlider, StringFormat={}{0:F0}}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,0">
                                     <Grid.ColumnDefinitions>
@@ -1481,13 +1519,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="ToastBodyFontSizeValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="ToastBodyFontSizeValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=ToastBodyFontSizeSlider, StringFormat={}{0:F0}}"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -1515,13 +1554,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="OpacityValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="OpacityValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=OpacitySlider, StringFormat={}{0:F0}%}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -1541,13 +1581,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="ToastOpacityValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="ToastOpacityValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=ToastOpacitySlider, StringFormat={}{0:F0}%}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -1567,13 +1608,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="CornerRadiusValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="CornerRadiusValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=CornerRadiusSlider, StringFormat={}{0:F0}}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -1593,13 +1635,14 @@
                                             AutoToolTipPlacement="TopLeft"
                                             AutoToolTipPrecision="0"
                                             VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="PaddingValue"
-                                               Grid.Column="2"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontWeight="Bold"
-                                               Foreground="#FF00BFFF"
-                                               FontSize="14"/>
+                                     <TextBlock x:Name="PaddingValue"
+                                                Grid.Column="2"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontWeight="Bold"
+                                                Foreground="#FF00BFFF"
+                                                FontSize="14"
+                                                Text="{Binding Value, ElementName=PaddingSlider, StringFormat={}{0:F0}}"/>
                                 </Grid>
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
@@ -1775,14 +1818,22 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <TextBlock x:Name="LogsEmptyText"
-                                   Grid.Row="1"
-                                   Text="No log entries to display."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#FFBBBBBB"
-                                   FontSize="14"
-                                   Visibility="Collapsed"/>
+                        <StackPanel x:Name="LogsEmptyText"
+                                    Grid.Row="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <TextBlock Text="&#xE8FD;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="48"
+                                       Foreground="#FF666666"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="No log entries to display."
+                                       Foreground="#FFBBBBBB"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
